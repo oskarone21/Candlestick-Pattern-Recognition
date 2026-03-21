@@ -1,0 +1,19 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: candlestick-cnn:latest
+    container_name: candlestick-cnn
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    gpus: all
+    shm_size: "8gb"
+    environment:
+      PYTHONUNBUFFERED: "1"
+      MPLBACKEND: "Agg"
+    ports:
+      - "8888:8888"
+    stdin_open: true
+    tty: true
