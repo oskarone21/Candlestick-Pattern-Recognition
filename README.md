@@ -126,9 +126,3 @@ On Windows PowerShell, activate the environment with:
 - `scripts/dev-shell.sh`: auto-selects GPU mode when available, CPU mode otherwise
 - `scripts/dev-shell.ps1`: Windows PowerShell version of the auto-select helper
 - `.dockerignore`: avoids sending large/temporary files to Docker build context
-
-## Suggested team split
-
-- Member 1: transform OHLCV windows into candlestick images
-- Member 2: implement augmentation pipeline and dataset loaders
-- Member 3: train/evaluate CNN and report metrics
