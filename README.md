@@ -42,13 +42,15 @@ This is the default mode and is intended for your university lab computers.
 docker compose run --rm app bash
 ```
 
-### 4) Run with CPU override (Mac and non-NVIDIA systems)
+### 4) Run without GPU runtime (Mac and non-NVIDIA systems)
 
-Use the CPU override file when GPU runtime is unavailable:
+Use the override file when NVIDIA runtime is unavailable:
 
 ```bash
 docker compose -f docker-compose.cpu.yml run --rm app bash
 ```
+
+Note: this override removes GPU reservation from Compose, but it still builds the same CUDA-enabled image (`Dockerfile`). On systems without NVIDIA GPU support, PyTorch will run on CPU (`torch.cuda.is_available() == False`).
 
 ### 5) Automatic fallback script
 
@@ -56,6 +58,12 @@ The script below checks whether Docker has NVIDIA runtime support. If available,
 
 ```bash
 bash scripts/dev-shell.sh
+```
+
+On Windows PowerShell, use:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/dev-shell.ps1
 ```
 
 You can also pass a command, for example:
@@ -114,8 +122,9 @@ On Windows PowerShell, activate the environment with:
 
 - `Dockerfile`: CUDA-enabled PyTorch base image + dependency installation
 - `docker-compose.yml`: default Compose config that requests GPU access
-- `docker-compose.cpu.yml`: CPU override for non-NVIDIA machines
+- `docker-compose.cpu.yml`: no-GPU Compose override for non-NVIDIA machines
 - `scripts/dev-shell.sh`: auto-selects GPU mode when available, CPU mode otherwise
+- `scripts/dev-shell.ps1`: Windows PowerShell version of the auto-select helper
 - `.dockerignore`: avoids sending large/temporary files to Docker build context
 
 ## Suggested team split
