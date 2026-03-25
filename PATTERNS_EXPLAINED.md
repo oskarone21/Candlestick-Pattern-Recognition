@@ -282,11 +282,57 @@ for each window in time_series:
     5. Else: label as "no_pattern"
 ```
 
-### 3. Handling Overlaps
-- If multiple patterns detected in same window, prioritize by:
-  1. Pattern with confirmed breakout
-  2. Most recent formation
-  3. Highest confidence score (meets more constraints strictly)
+### 3. Training Strategy: Binary Classifiers per Pattern
+
+**Important:** We train SEPARATE models for each pattern type to avoid label conflicts and ambiguous training data.
+
+**Why Separate Runs?**
+- Multiple patterns can appear in the same window → conflicting labels
+- Binary classification focuses the model on one pattern geometry
+- Easier debugging and model interpretation
+- Teammates can work on different patterns in parallel
+
+**The 4 Training Runs:**
+
+```yaml
+Run 1 - H&S Detection:
+  Positive class: head_shoulders (pattern detected)
+  Negative class: other (inverse H&S, double top, double bottom, no pattern)
+  
+Run 2 - Inverse H&S Detection:
+  Positive class: inverse_head_shoulders
+  Negative class: other (H&S, double top, double bottom, no pattern)
+  
+Run 3 - Double Top Detection:
+  Positive class: double_top
+  Negative class: other (H&S, inverse H&S, double bottom, no pattern)
+  
+Run 4 - Double Bottom Detection:
+  Positive class: double_bottom
+  Negative class: other (H&S, inverse H&S, double top, no pattern)
+```
+
+**Labeling for Each Run:**
+```python
+# Example for Run 1 (H&S detection)
+if pattern_detected == "head_shoulders":
+    label = 1  # positive
+else:
+    label = 0  # negative (includes all other patterns + no_pattern)
+```
+
+**Configuration:**
+Set `labeling.active_pattern` in config.yaml to specify which pattern to detect:
+```yaml
+labeling:
+  active_pattern: head_shoulders  # or inverse_head_shoulders, double_top, double_bottom
+```
+
+**Ensemble Approach (Future):**
+Once all 4 models are trained, you can ensemble them:
+- Run all 4 models on new data
+- Combine probability scores
+- Flag when multiple patterns detected (may indicate high-confidence signal)
 
 ### 4. Tolerance Flexibility
 - Real markets are noisy; strict geometric perfection is rare

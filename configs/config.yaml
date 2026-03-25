@@ -54,13 +54,24 @@ windowing:
   stride: 1                                  # Sliding-window step
 
 labeling:
-  classes:                                   # Final class list used for training
-    - head_shoulders
-    - inverse_head_shoulders
-    - double_top
-    - double_bottom
-    - no_pattern
-  include_no_pattern: true                   # Include background/no-pattern class
+  # Binary classification approach: train separate models for each pattern
+  # Set active_pattern to specify which pattern this run detects
+  active_pattern: head_shoulders             # head_shoulders | inverse_head_shoulders | double_top | double_bottom
+  
+  # Classes for binary classification (automatically set based on active_pattern):
+  # - Positive class: the active_pattern being detected
+  # - Negative class: "other" (all other patterns + no_pattern)
+  # 
+  # Example: if active_pattern = head_shoulders:
+  #   - Class 1: head_shoulders pattern detected
+  #   - Class 0: other (includes inverse H&S, double top, double bottom, no_pattern)
+  
+  classes:
+    - positive                                # active_pattern (e.g., head_shoulders)
+    - other                                   # everything else (other patterns + no_pattern)
+  
+  # Pattern-specific parameters - all defined for reference
+  # Only the active_pattern parameters are used in each run
 
   pivot:
     method: fractal                          # Pivot detection method
@@ -109,7 +120,7 @@ model:
   architecture: tcn                          # For sequence mode: tcn | lstm | transformer
   image_backbone: resnet18                   # Used only if input_type=image
   pretrained_image_backbone: true            # Used only for image backbone
-  num_classes: 5                             # Must match number of classes
+  num_classes: 2                             # Binary: pattern vs other (see labeling.active_pattern)
   dropout: 0.2                               # Classifier dropout
 
 training:
