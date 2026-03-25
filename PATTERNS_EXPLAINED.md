@@ -39,7 +39,7 @@ A bearish reversal pattern consisting of three peaks: left shoulder, head (highe
 - **Shoulder symmetry**: `|LS - RS| / avg(LS, RS) ≤ shoulder_height_tolerance_pct`
   - Default: 3% (0.03)
 - **Head prominence**: `(H - avg(LS, RS)) / avg(LS, RS) ≥ head_prominence_pct`
-  - Default: 2.5% (0.025)
+  - Default: 5% (0.05) - Head must be noticeably higher than both shoulders
 
 **Temporal Requirements:**
 - **Minimum separation**: `min_peak_separation_bars` between consecutive peaks
@@ -48,17 +48,33 @@ A bearish reversal pattern consisting of three peaks: left shoulder, head (highe
   - Default: 40 bars
 
 **Neckline Requirements:**
-- Drawn across the two valleys between the three peaks
+
+The neckline is a critical support level that determines pattern validity:
+
+![Head and Shoulders Pattern](docs/images/head_shoulders_pattern.png)
+
+- **Definition**: Trend line connecting the two valleys between the three peaks (Valley 1 between LS→H, Valley 2 between H→RS)
+- **Formula**: Linear interpolation between Valley 1 and Valley 2
+  - `neckline_price(t) = V1 + (V2 - V1) × (t - t1) / (t2 - t1)`
+  - Where V1, V2 are valley prices at times t1, t2
 - **Slope constraint**: `|neckline_slope| ≤ neckline_max_slope`
   - Default: 0.15 (nearly horizontal)
-- If neckline slopes upward, right shoulder valley must be noticeably lower than left shoulder peak
+  - Upward sloping neckline: Right valley must be lower than left shoulder peak
+  - Downward sloping neckline: More bearish signal
+- **Support function**: Acts as support during formation; breaking it confirms reversal
+
+**Pattern Completion (CRITICAL):**
+- The pattern is **NOT complete** until the neckline is broken
+- Without neckline break, it's just a "potential" pattern, not a confirmed signal
+- **Breakout requirement**: Price must close **below** neckline by `breakout_confirmation_pct`
+  - Default: 3% (0.03) penetration required
+- **Timing**: Must occur within `confirm_break_within_bars` after right shoulder formation
+  - Default: 8 bars
+- **Volume confirmation**: Higher volume on breakout = stronger signal (optional but ideal)
+
+**Trade Trigger:** Only enter short positions AFTER neckline break with confirmation
 
 **Confirmation:**
-- **Breakout**: Price must close below neckline by `breakout_confirmation_pct`
-  - Default: 3% (0.03)
-- **Breakout window**: Must occur within `confirm_break_within_bars` after right shoulder formation
-  - Default: 8 bars
-- **Volume**: Ideally higher on breakout (optional confirmation)
 
 ### Label Assignment
 - **Positive label**: When pattern completes (neckline broken)

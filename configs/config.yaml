@@ -81,7 +81,7 @@ labeling:
 
   head_shoulders:
     shoulder_height_tolerance_pct: 0.03      # Max shoulder price difference (3%)
-    head_prominence_pct: 0.025               # Min head height above shoulders (2.5%)
+    head_prominence_pct: 0.05               # Min head height above shoulders (5%)
     min_peak_separation_bars: 5              # Min bars between consecutive peaks
     max_peak_separation_bars: 40             # Max bars between first and last peak
     neckline_max_slope: 0.15                 # Max absolute neckline slope
