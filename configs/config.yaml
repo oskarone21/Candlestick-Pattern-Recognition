@@ -54,66 +54,106 @@ windowing:
   stride: 1                                  # Sliding-window step
 
 labeling:
-  # Binary classification approach: train separate models for each pattern
-  # Set active_pattern to specify which pattern this run detects
+  schema_version: 2                          # Strict academic labeling schema
   active_pattern: head_shoulders             # head_shoulders | inverse_head_shoulders | double_top | double_bottom
-  
-  # Classes for binary classification (automatically set based on active_pattern):
-  # - Positive class: the active_pattern being detected
-  # - Negative class: "other" (all other patterns + no_pattern)
-  # 
-  # Example: if active_pattern = head_shoulders:
-  #   - Class 1: head_shoulders pattern detected
-  #   - Class 0: other (includes inverse H&S, double top, double bottom, no_pattern)
-  
-  classes:
-    - positive                                # active_pattern (e.g., head_shoulders)
-    - other                                   # everything else (other patterns + no_pattern)
-  
-  # Pattern-specific parameters - all defined for reference
-  # Only the active_pattern parameters are used in each run
+  strategy: one_vs_rest_binary               # Separate binary model per active pattern
 
-  pivot:
-    method: fractal                          # Pivot detection method
-    left_bars: 3                             # Pivot confirmation bars on left
-    right_bars: 3                            # Pivot confirmation bars on right
-    min_swing_pct: 0.015                     # Minimum swing size to keep pivot
+  classes:
+    positive_label: 1
+    negative_label: 0
+    positive_name: positive
+    negative_name: other
+
+  extrema_detection:
+    method: nadaraya_watson                  # Nonparametric smoothing before extrema extraction
+    price_field: close
+    smoothing:
+      kernel: gaussian
+      bandwidth:
+        selection_method: aicc               # Data-driven bandwidth selection
+        lookback_bars: 120
+        min_bandwidth: 2.0
+        max_bandwidth: 30.0
+    extrema_validation:
+      derivative_method: central_difference
+      zero_crossing_epsilon: 1.0e-6
+      min_second_derivative_abs: 1.0e-7
+      enforce_alternation: true
+      min_extrema_separation_bars: 2
+
+  confirmation:
+    breakout_confirmation_pct: 0.04          # 4% default within the 3-5% literature range
+    confirm_break_within_bars: 8
+    breakout_volume_average_bars: 20
+
+  labeling_policy:
+    positive_event: confirmed_breakout_only
+    window_anchor: breakout_bar
+    hard_negative_sampling:
+      enabled: true
+      include_partial_patterns: true
+      include_failed_breakouts: true
+      target_positive_to_negative_ratio: "1:3"
 
   head_shoulders:
-    shoulder_height_tolerance_pct: 0.03      # Max shoulder price difference (3%)
-    head_prominence_pct: 0.05               # Min head height above shoulders (5%)
-    min_peak_separation_bars: 5              # Min bars between consecutive peaks
-    max_peak_separation_bars: 40             # Max bars between first and last peak
-    neckline_max_slope: 0.15                 # Max absolute neckline slope
-    breakout_confirmation_pct: 0.03          # Price must break neckline by this % (3%)
-    confirm_break_within_bars: 8             # Breakout confirmation horizon
+    geometry:
+      shoulder_symmetry_tolerance_pct: 0.015
+      neckline_point_symmetry_tolerance_pct: 0.015
+      min_peak_separation_bars: 5
+      max_peak_separation_bars: 40
+      neckline_max_slope: 0.15
+    structure:
+      require_e1_peak_e2_trough_e3_peak_e4_trough_e5_peak: true
+      require_head_above_shoulders: true
+    volume_rules:
+      required: true
+      require_peak_volume_decay: true
+      peak_volume_order: V_E1_gt_V_E3_gt_V_E5
+      breakout_volume_min_multiplier: 1.2
 
   inverse_head_shoulders:
-    shoulder_depth_tolerance_pct: 0.03       # Max shoulder depth difference (3%)
-    head_depth_prominence_pct: 0.025         # Min head depth below shoulders (2.5%)
-    min_trough_separation_bars: 5            # Min bars between consecutive troughs
-    max_trough_separation_bars: 40           # Max bars between first and last trough
-    neckline_max_slope: 0.15                 # Max absolute neckline slope
-    breakout_confirmation_pct: 0.03          # Price must break neckline by this % (3%)
-    confirm_break_within_bars: 8             # Breakout confirmation horizon
+    geometry:
+      shoulder_symmetry_tolerance_pct: 0.015
+      neckline_point_symmetry_tolerance_pct: 0.015
+      min_trough_separation_bars: 5
+      max_trough_separation_bars: 40
+      neckline_max_slope: 0.15
+    structure:
+      require_e1_trough_e2_peak_e3_trough_e4_peak_e5_trough: true
+      require_head_below_shoulders: true
+    volume_rules:
+      required: true
+      require_peak_volume_decay: true
+      peak_volume_order: V_E2_gt_V_E4
+      breakout_volume_min_multiplier: 1.2
 
   double_top:
-    peak_tolerance_pct: 0.025                # Max peak price difference (2.5%)
-    min_pullback_pct: 0.015                  # Minimum pullback between peaks (1.5%)
-    prior_trend_pct: 0.15                    # Required uptrend before pattern (15%)
-    min_separation_bars: 5                   # Min bars between peaks
-    max_separation_bars: 50                  # Max bars between peaks
-    breakout_confirmation_pct: 0.03          # Price must break neckline by this % (3%)
-    confirm_break_within_bars: 8             # Breakout confirmation horizon
+    geometry:
+      peak_tolerance_pct: 0.025
+      min_pullback_pct: 0.05
+      prior_trend_pct: 0.15
+      min_separation_bars: 5
+      max_separation_bars: 50
+    structure:
+      require_e1_peak_e2_trough_e3_peak: true
+    volume_rules:
+      required: true
+      require_first_peak_volume_greater_than_second: true
+      breakout_volume_min_multiplier: 1.2
 
   double_bottom:
-    trough_tolerance_pct: 0.025              # Max trough price difference (2.5%)
-    min_bounce_pct: 0.015                    # Minimum bounce between troughs (1.5%)
-    prior_trend_pct: 0.15                    # Required downtrend before pattern (15%)
-    min_separation_bars: 5                   # Min bars between troughs
-    max_separation_bars: 50                  # Max bars between troughs
-    breakout_confirmation_pct: 0.03          # Price must break neckline by this % (3%)
-    confirm_break_within_bars: 8             # Breakout confirmation horizon
+    geometry:
+      trough_tolerance_pct: 0.025
+      min_bounce_pct: 0.05
+      prior_trend_pct: 0.15
+      min_separation_bars: 5
+      max_separation_bars: 50
+    structure:
+      require_e1_trough_e2_peak_e3_trough: true
+    volume_rules:
+      required: true
+      require_first_trough_volume_greater_than_second: true
+      breakout_volume_min_multiplier: 1.5
 
 model:
   input_type: sequence                       # sequence | image
