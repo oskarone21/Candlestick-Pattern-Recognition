@@ -2,9 +2,17 @@
 
 This repository contains a deep learning project for automated candlestick chart pattern recognition. It transforms OHLCV time-series windows into candlestick chart images, then trains a CNN (for example, a fine-tuned ResNet) to classify patterns such as bull flags and consolidations.
 
+## Important data file note
+
+Before running the project, manually place `nq_1min.csv` inside the `data/` folder (`data/nq_1min.csv`). This file is too large to store in this GitHub repository.
+
 ## Project goal
 
 Investigate whether image-based deep learning models can identify technical chart patterns from financial time-series data after transforming OHLCV windows into candlestick chart images.
+
+## Team development standards
+
+See `TEAM_STANDARDS.md` for shared coding conventions, config usage rules, and AI-assisted development practices. This keeps team contributions consistent and prevents accidental drift from the shared configuration and workflow.
 
 ## Tech stack
 
@@ -146,6 +154,7 @@ pip install --extra-index-url https://download.pytorch.org/whl/cu124 -r requirem
 - `docker-compose.yml` - default Docker Compose configuration with GPU access
 - `docker-compose.cpu.yml` - Compose override for systems without NVIDIA runtime support
 - `scripts/dev-shell.sh` - helper script that automatically selects GPU or CPU mode
+- `TEAM_STANDARDS.md` - team-wide coding, configuration, and collaboration standards
 - `.dockerignore` - excludes large or temporary files from Docker build context
 - `requirements.txt` - pinned Python package versions
 

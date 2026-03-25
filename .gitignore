@@ -1,0 +1,26 @@
+# OS files
+.DS_Store
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local experiment overrides (keep shared config tracked)
+configs/local/*.yaml
+
+# Large/private datasets
+data/nq_1min.csv
+
+# Generated artifacts
+outputs/
+logs/
+checkpoints/

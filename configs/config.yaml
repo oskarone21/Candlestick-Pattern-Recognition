@@ -1,0 +1,219 @@
+project:
+  name: candlestick-pattern-recognition
+  run_name: nq_patterns_resnet18_15m_v1
+  seed: 42
+  deterministic: true
+  device: auto
+  num_workers: 4
+  pin_memory: true
+
+data_source:
+  provider: csv
+  file_path: data/nq_1min.csv
+  delimiter: ","
+  encoding: utf-8
+  has_header: true
+  instrument: NQ
+
+  timestamp:
+    column: ts_event
+    format: null
+    timezone_in_data: UTC
+    convert_to_timezone: America/New_York
+    sort_ascending: true
+
+  columns:
+    open: Open
+    high: High
+    low: Low
+    close: Close
+    volume: Volume
+
+  quality:
+    drop_duplicates: true
+    dropna_ohlcv: true
+    enforce_numeric_ohlcv: true
+    expected_base_frequency: 1min
+    allow_market_close_gap: true
+    market_close_gap_minutes: 60
+
+resampling:
+  base_timeframe: 1min
+  target_timeframe: 15min
+  align_to_clock: true
+  label: right
+  closed: right
+  drop_incomplete_bars: true
+  ohlcv_agg:
+    open: first
+    high: max
+    low: min
+    close: last
+    volume: sum
+
+windowing:
+  lookback_bars: 80
+  stride: 1
+  min_history_bars: 200
+
+labeling:
+  classes:
+    - head_shoulders
+    - inverse_head_shoulders
+    - double_top
+    - double_bottom
+    - no_pattern
+  include_no_pattern: true
+
+  pivot:
+    method: fractal
+    left_bars: 3
+    right_bars: 3
+    min_swing_pct: 0.015
+
+  head_shoulders:
+    shoulder_height_tolerance_pct: 0.03
+    head_prominence_pct: 0.025
+    neckline_max_slope: 0.15
+    min_peak_separation_bars: 5
+    max_peak_separation_bars: 40
+    confirm_break_within_bars: 8
+
+  inverse_head_shoulders:
+    shoulder_depth_tolerance_pct: 0.03
+    head_depth_prominence_pct: 0.025
+    neckline_max_slope: 0.15
+    min_trough_separation_bars: 5
+    max_trough_separation_bars: 40
+    confirm_break_within_bars: 8
+
+  double_top:
+    peak_tolerance_pct: 0.025
+    min_pullback_pct: 0.015
+    min_separation_bars: 5
+    max_separation_bars: 50
+    confirm_break_within_bars: 8
+
+  double_bottom:
+    trough_tolerance_pct: 0.025
+    min_bounce_pct: 0.015
+    min_separation_bars: 5
+    max_separation_bars: 50
+    confirm_break_within_bars: 8
+
+chart_images:
+  enabled: true
+  style: classic
+  width_px: 224
+  height_px: 224
+  dpi: 100
+  candles_per_image: 80
+  show_volume: true
+  normalize_price_axis: true
+  output_format: png
+
+dataset:
+  split:
+    method: time
+    train_ratio: 0.70
+    val_ratio: 0.15
+    test_ratio: 0.15
+    purge_gap_bars: 20
+  balancing:
+    method: weighted_sampler
+  batch_size: 64
+  shuffle_train: true
+
+augmentations:
+  enabled: true
+  train:
+    random_brightness_contrast: 0.2
+    gaussian_blur_prob: 0.1
+    gaussian_noise_prob: 0.1
+    shift_scale_rotate_prob: 0.2
+  val:
+    enabled: false
+
+model:
+  task: multiclass
+  num_classes: 5
+  architecture: resnet18
+  pretrained: true
+  in_channels: 3
+  dropout: 0.2
+  freeze_backbone: false
+
+loss:
+  name: cross_entropy
+  label_smoothing: 0.05
+  class_weights: auto
+
+optimizer:
+  name: adamw
+  lr: 0.0003
+  weight_decay: 0.0001
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  enabled: true
+  name: cosine
+  t_max_epochs: 30
+  min_lr: 1.0e-6
+  warmup_epochs: 2
+
+training:
+  epochs: 30
+  mixed_precision: true
+  grad_clip_norm: 1.0
+  accumulate_steps: 1
+  early_stopping:
+    enabled: true
+    monitor: val_f1_macro
+    mode: max
+    patience: 7
+  checkpoint:
+    save_best_only: true
+    monitor: val_f1_macro
+    mode: max
+  validate_every_n_epochs: 1
+
+evaluation:
+  metrics:
+    - accuracy
+    - precision_macro
+    - recall_macro
+    - f1_macro
+  confusion_matrix: true
+  classification_report: true
+  explainability:
+    gradcam: true
+    max_samples: 100
+
+logging:
+  level: INFO
+  log_every_n_steps: 20
+  tensorboard: true
+  save_predictions: true
+  save_misclassified_examples: true
+
+paths:
+  data_raw: data/raw
+  data_interim: data/interim
+  data_labels: data/labels
+  data_processed: data/processed
+  data_images: data/images
+  data_splits: data/splits
+  outputs_root: outputs
+  checkpoints_dir: outputs/checkpoints
+  runs_dir: outputs/runs
+  metrics_dir: outputs/metrics
+  figures_dir: outputs/figures
+
+runtime:
+  save_config_snapshot: true
+  resume_from_checkpoint: null
+  experiment_tags:
+    - baseline
+    - nq
+    - 15min
