@@ -14,18 +14,32 @@ Before running the project, manually place `nq_1min.csv` inside the `data/` fold
 
 Investigate whether objective, rule-defined chart patterns can be learned from market data, and compare sequence-based models against optional image-based baselines.
 
-## Updated modeling approach
+## Modeling approach
 
-1. Build objective labels using numeric pattern rules (head and shoulders, inverse head and shoulders, double top, double bottom, no-pattern).
-2. Train a primary sequence model directly on OHLCV windows.
-3. Optionally train an image-CNN baseline on rendered candlestick windows for comparison.
-4. Evaluate all approaches on the same time-based split using per-class precision, recall, and F1.
+1. Smooth 15-minute close prices with Nadaraya-Watson kernel regression and extract extrema from first/second derivative conditions.
+2. Build strict geometric labels for head and shoulders, inverse head and shoulders, double top, and double bottom.
+3. Enforce volume-confirmation constraints and assign positive labels only on confirmed neckline breakouts.
+4. Train a primary sequence model directly on OHLCV windows using one-vs-rest binary runs (one pattern per run).
+5. Optionally train an image-CNN baseline on rendered candlestick windows for comparison.
+6. Evaluate all approaches on the same time-based split using precision, recall, and F1.
 
 Why this approach:
 
 - Pattern definitions stay auditable and reproducible.
+- Labels are tied to academically defined breakout events, reducing target noise.
 - Sequence models use raw market structure directly and avoid chart-rendering artifacts.
 - Optional image baseline still lets the team test the original vision idea.
+
+## Academic basis and justification
+
+The labeling schema in `configs/config.yaml` and formulas in `PATTERNS_EXPLAINED.md` are based on the following literature:
+
+- Lo, Mamaysky, and Wang (2000): formalized technical pattern detection with nonparametric methods and statistical testing. Link: `https://doi.org/10.1111/0022-1082.00265`
+- Osler and Chang (1995): objective algorithmic head-and-shoulders detection with out-of-sample style evaluation. Link: `https://www.newyorkfed.org/research/staff_reports/sr4.html`
+- Savin, Weller, and Zvingelis (2007): predictive power evidence for head-and-shoulders in U.S. equities. Link: `https://doi.org/10.1093/jjfinec/nbl012`
+- Nadaraya (1964): foundational kernel regression estimator used for smoothing noisy price series. Link: `https://doi.org/10.1137/1109020`
+- Hurvich, Simonoff, and Tsai (1998): improved AIC (AICc) for nonparametric smoothing parameter selection. Link: `https://doi.org/10.1111/1467-9868.00125`
+- Bulkowski (3rd ed.): empirical breakout and volume confirmation heuristics used as practical bounds in configuration.
 
 ## Team development standards
 
