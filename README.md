@@ -1,6 +1,10 @@
 # Automated Candlestick Chart Pattern Recognition
 
-This repository contains a deep learning project for automated candlestick chart pattern recognition. It transforms OHLCV time-series windows into candlestick chart images, then trains a CNN (for example, a fine-tuned ResNet) to classify patterns such as bull flags and consolidations.
+This repository contains a deep learning project for automated chart-pattern recognition from futures OHLCV data.
+
+The updated project approach is hybrid:
+- Primary path: rule-based pattern labeling + sequence modeling on OHLCV windows
+- Optional comparison path: candlestick image rendering + CNN baseline
 
 ## Important data file note
 
@@ -8,11 +12,32 @@ Before running the project, manually place `nq_1min.csv` inside the `data/` fold
 
 ## Project goal
 
-Investigate whether image-based deep learning models can identify technical chart patterns from financial time-series data after transforming OHLCV windows into candlestick chart images.
+Investigate whether objective, rule-defined chart patterns can be learned from market data, and compare sequence-based models against optional image-based baselines.
+
+## Updated modeling approach
+
+1. Build objective labels using numeric pattern rules (head and shoulders, inverse head and shoulders, double top, double bottom, no-pattern).
+2. Train a primary sequence model directly on OHLCV windows.
+3. Optionally train an image-CNN baseline on rendered candlestick windows for comparison.
+4. Evaluate all approaches on the same time-based split using per-class precision, recall, and F1.
+
+Why this approach:
+
+- Pattern definitions stay auditable and reproducible.
+- Sequence models use raw market structure directly and avoid chart-rendering artifacts.
+- Optional image baseline still lets the team test the original vision idea.
 
 ## Team development standards
 
 See `TEAM_STANDARDS.md` for shared coding conventions, config usage rules, and AI-assisted development practices. This keeps team contributions consistent and prevents accidental drift from the shared configuration and workflow.
+
+## Configuration
+
+The single source of truth is `configs/config.yaml`.
+
+- Change shared defaults there (timeframe, labels, optimizer, training settings).
+- Use local override files for personal experiments.
+- `chart_images` controls candlestick rendering and is only used when image input is enabled.
 
 ## Tech stack
 
@@ -154,6 +179,7 @@ pip install --extra-index-url https://download.pytorch.org/whl/cu124 -r requirem
 - `docker-compose.yml` - default Docker Compose configuration with GPU access
 - `docker-compose.cpu.yml` - Compose override for systems without NVIDIA runtime support
 - `scripts/dev-shell.sh` - helper script that automatically selects GPU or CPU mode
+- `configs/config.yaml` - shared experiment and pipeline configuration
 - `TEAM_STANDARDS.md` - team-wide coding, configuration, and collaboration standards
 - `.dockerignore` - excludes large or temporary files from Docker build context
 - `requirements.txt` - pinned Python package versions

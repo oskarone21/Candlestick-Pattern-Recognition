@@ -22,12 +22,48 @@ The goal is consistency: reproducible experiments, clear code ownership, and few
 ### Local experiment overrides
 
 - For personal experiments, create a local override file, for example:
-  - `configs/oskar.experiment.yaml`
+  - `configs/local/oskar.experiment.yaml`
 - Local override files are for temporary tuning and should not be merged unless agreed by the team.
 - Merge order should be:
   1. `configs/config.yaml`
   2. local override file
   3. CLI key-value overrides (highest priority)
+
+In-script example (load base config and optional override):
+
+```python
+from copy import deepcopy
+import yaml
+
+
+def deep_merge(base: dict, override: dict) -> dict:
+    merged = deepcopy(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def load_config(base_path: str, override_path: str | None = None) -> dict:
+    with open(base_path, "r", encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+    if override_path:
+        with open(override_path, "r", encoding="utf-8") as f:
+            override = yaml.safe_load(f)
+        config = deep_merge(config, override)
+    return config
+
+
+cfg = load_config(
+    "configs/config.yaml",
+    "configs/local/oskar.experiment.yaml",
+)
+
+print("Run name:", cfg["project"]["run_name"])
+print("Learning rate:", cfg["optimizer"]["lr"])
+```
 
 Recommended run examples:
 
