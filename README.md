@@ -169,6 +169,23 @@ Create notebooks inside this repository (for example in `notebooks/`). Because t
 
 ## Optional local setup (without Docker)
 
+### macOS Apple Silicon
+
+Use the dedicated local requirements file. The main `requirements.txt` is pinned for the team's CUDA/Docker workflow and is not appropriate for Apple Silicon.
+
+```bash
+bash scripts/setup_macos.sh
+source .venv/bin/activate
+```
+
+Quick device check:
+
+```bash
+python -c "import torch; print('MPS available:', torch.backends.mps.is_available())"
+```
+
+### Linux / Windows with NVIDIA CUDA
+
 macOS/Linux:
 
 ```bash

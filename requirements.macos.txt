@@ -11,9 +11,9 @@ opencv-python-headless==4.10.0.84
 # Data augmentation
 albumentations==1.4.24
 
-# Deep learning (CUDA 12.4)
-torch==2.5.1+cu124
-torchvision==0.20.1+cu124
+# Deep learning (Apple Silicon / CPU / MPS)
+torch==2.5.1
+torchvision==0.20.1
 
 # Training and evaluation
 scikit-learn==1.5.2
