@@ -72,8 +72,8 @@ labeling:
       bandwidth:
         selection_method: aicc               # Data-driven bandwidth selection
         lookback_bars: 120
-        min_bandwidth: 2.0
-        max_bandwidth: 30.0
+        min_bandwidth: 6.0
+        max_bandwidth: 26.0
     extrema_validation:
       derivative_method: central_difference
       zero_crossing_epsilon: 1.0e-6
@@ -82,8 +82,8 @@ labeling:
       min_extrema_separation_bars: 2
 
   confirmation:
-    breakout_confirmation_pct: 0.04          # 4% default within the 3-5% literature range
-    confirm_break_within_bars: 8
+    breakout_confirmation_pct: 0.005         # 0.5%: close above neckline by 0.5%
+    confirm_break_within_bars: 50            # 50 bars = ~12hrs: multi-day patterns need more confirmation time
     breakout_volume_average_bars: 20
 
   labeling_policy:
@@ -97,26 +97,26 @@ labeling:
 
   head_shoulders:
     geometry:
-      shoulder_symmetry_tolerance_pct: 0.015
-      neckline_point_symmetry_tolerance_pct: 0.015
+      shoulder_symmetry_tolerance_pct: 0.07   # 7%: NQ 15min shoulders rarely symmetric to <4%
+      neckline_point_symmetry_tolerance_pct: 0.07
       min_peak_separation_bars: 5
-      max_peak_separation_bars: 40
+      max_peak_separation_bars: 120           # ~30hrs: NQ near-24hr trading
       neckline_max_slope: 0.15
     structure:
       require_e1_peak_e2_trough_e3_peak_e4_trough_e5_peak: true
       require_head_above_shoulders: true
     volume_rules:
-      required: true
+      required: false                         # Disabled: strict V_E1>V_E3>V_E5 leaves <30 samples on NQ 15min
       require_peak_volume_decay: true
       peak_volume_order: V_E1_gt_V_E3_gt_V_E5
       breakout_volume_min_multiplier: 1.2
 
   inverse_head_shoulders:
     geometry:
-      shoulder_symmetry_tolerance_pct: 0.015
-      neckline_point_symmetry_tolerance_pct: 0.015
+      shoulder_symmetry_tolerance_pct: 0.07   # 7%: consistent with H&S calibration
+      neckline_point_symmetry_tolerance_pct: 0.07
       min_trough_separation_bars: 5
-      max_trough_separation_bars: 40
+      max_trough_separation_bars: 120         # ~30hrs: NQ near-24hr trading
       neckline_max_slope: 0.15
     structure:
       require_e1_trough_e2_peak_e3_trough_e4_peak_e5_trough: true
@@ -129,11 +129,11 @@ labeling:
 
   double_top:
     geometry:
-      peak_tolerance_pct: 0.025
-      min_pullback_pct: 0.05
-      prior_trend_pct: 0.15
+      peak_tolerance_pct: 0.040              # 4%: matches double_bottom trough tolerance for NQ
+      min_pullback_pct: 0.003                # 0.3%: NQ 15min intraday pullback threshold
+      prior_trend_pct: 0.005                 # 0.5%: prior rise before first peak
       min_separation_bars: 5
-      max_separation_bars: 50
+      max_separation_bars: 200               # ~50hrs: NQ near-24hr trading, patterns span multiple days
     structure:
       require_e1_peak_e2_trough_e3_peak: true
     volume_rules:
@@ -143,11 +143,11 @@ labeling:
 
   double_bottom:
     geometry:
-      trough_tolerance_pct: 0.025
-      min_bounce_pct: 0.05
-      prior_trend_pct: 0.15
+      trough_tolerance_pct: 0.040        # 4%: smoothed 15min troughs on NQ have low amplitude
+      min_bounce_pct: 0.003              # 0.3%: NQ 15min intraday bounce threshold
+      prior_trend_pct: 0.005             # 0.5%: prior drop before first trough
       min_separation_bars: 5
-      max_separation_bars: 50
+      max_separation_bars: 200           # ~50hrs: NQ near-24hr trading, patterns span multiple days
     structure:
       require_e1_trough_e2_peak_e3_trough: true
     volume_rules:
@@ -162,17 +162,30 @@ model:
   pretrained_image_backbone: true            # Used only for image backbone
   num_classes: 2                             # Binary: pattern vs other (see labeling.active_pattern)
   dropout: 0.2                               # Classifier dropout
+  tcn:
+    num_channels: [32, 64, 64]              # Channel sizes per TCN layer (3 layers)
+    kernel_size: 3                           # Convolution kernel size
+    input_features: 5                        # OHLCV = 5 input features
 
 training:
   batch_size: 64                             # Samples per gradient step
-  epochs: 30                                 # Maximum number of training epochs
+  epochs: 60                                 # Maximum number of training epochs
   mixed_precision: true                      # AMP training for speed/memory
-  early_stopping_patience: 7                 # Stop if metric does not improve
+  early_stopping_patience: 10               # Stop if metric does not improve
+  class_weight_negative: 1.0                # Loss weight for negative class
+  class_weight_positive: 1.5               # Loss weight for positive class (mild, training is ~51% pos after aug)
+
+augmentation:
+  enabled: true                             # Toggle augmentation on/off
+  n_copies_per_positive: 2                 # 75 -> 225 positives, 216 negatives -> ~51% positive rate
+  gaussian_noise_std: 0.012                # Std of full-feature Gaussian noise
+  price_coherent_noise_std: 0.008          # Coherent noise added to OHLC together
+  volume_jitter_range: 0.12               # Volume scaled by Uniform(-range, +range)
 
 optimizer:
   name: adamw                                # Optimizer type
-  lr: 0.0003                                 # Learning rate
-  weight_decay: 0.0001                       # L2 regularization strength
+  lr: 0.0002                                 # Learning rate
+  weight_decay: 0.001                        # L2 regularization strength
 
 evaluation:
   split_method: time                         # Use time-based split to reduce leakage
