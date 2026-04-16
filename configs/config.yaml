@@ -173,7 +173,7 @@ training:
   mixed_precision: true                      # AMP training for speed/memory
   early_stopping_patience: 10               # Stop if metric does not improve
   class_weight_negative: 1.0                # Loss weight for negative class
-  class_weight_positive: 1.5               # Loss weight for positive class (mild, training is ~51% pos after aug)
+  class_weight_positive: auto               # Auto-balance rare positives when training on all rolling anchors
 
 augmentation:
   enabled: true                             # Toggle augmentation on/off
@@ -197,6 +197,47 @@ evaluation:
     - precision_macro
     - recall_macro
     - f1_macro
+
+product:
+  purged_split:
+    enabled: true
+    embargo_bars: 80
+
+  stage1:
+    threshold_search:
+      min: 0.20
+      max: 0.90
+      num: 29
+      precision_floor: 0.35
+
+  stage2:
+    model:
+      type: logistic_regression
+      c: 1.0
+      max_iter: 2000
+      solver: lbfgs
+      class_weight: balanced
+
+    trade_labeling:
+      horizon_bars: 16
+      take_profit_pct: 0.010
+      stop_loss_pct: 0.0075
+      min_net_return_pct: 0.0
+      round_trip_cost_bps: 4.0
+      same_bar_exit_priority: stop
+
+    threshold_search:
+      min: 0.20
+      max: 0.90
+      num: 29
+      precision_floor: 0.55
+      min_trades: 5
+
+  replay:
+    bars: 96
+    starting_capital: 100000.0
+    size_per_trade_usd: 10000.0
+    max_open_positions: 1
 
 chart_images:
   enabled: false                             # true only when training image models

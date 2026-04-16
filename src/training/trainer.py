@@ -63,9 +63,13 @@ def train(
     # 构建优化器
     optimizer = _build_optimizer(model, opt_cfg)
 
-    # 类别权重：从 config 读取，默认 [1.0, 6.0]
-    w_neg = train_cfg.get("class_weight_negative", 1.0)
-    w_pos = train_cfg.get("class_weight_positive", 6.0)
+    train_labels = train_loader.dataset.y.cpu().numpy()
+    n_pos = int((train_labels == 1).sum())
+    n_neg = int((train_labels == 0).sum())
+
+    # 类别权重：从 config 读取；当使用 "auto" 时按训练集类别比例计算
+    w_neg = _resolve_class_weight(train_cfg.get("class_weight_negative", 1.0), n_neg, n_pos)
+    w_pos = _resolve_class_weight(train_cfg.get("class_weight_positive", 6.0), n_pos, n_neg)
     pos_weight = torch.tensor([w_neg, w_pos], dtype=torch.float32).to(device)
     criterion  = nn.CrossEntropyLoss(weight=pos_weight)
 
@@ -82,6 +86,7 @@ def train(
 
     print(f"\n[trainer] Starting training — {epochs} epochs | "
           f"AMP: {use_amp} | patience: {patience}")
+    print(f"[trainer] Train samples — pos: {n_pos} | neg: {n_neg} | weights: [{w_neg:.3f}, {w_pos:.3f}]")
     print(f"{'Epoch':>6}  {'TrainLoss':>10}  {'ValLoss':>8}  "
           f"{'ValAcc':>7}  {'ValPrec':>8}  {'ValRec':>7}  {'ValF1':>6}")
     print("-" * 62)
@@ -160,8 +165,11 @@ def evaluate_test(
     # 加载训练时保存的最优权重
     model.load_state_dict(torch.load(checkpoint_path, map_location=device))
 
-    w_neg = cfg["training"].get("class_weight_negative", 1.0)
-    w_pos = cfg["training"].get("class_weight_positive", 6.0)
+    test_labels = test_loader.dataset.y.cpu().numpy()
+    n_pos = int((test_labels == 1).sum())
+    n_neg = int((test_labels == 0).sum())
+    w_neg = _resolve_class_weight(cfg["training"].get("class_weight_negative", 1.0), n_neg, n_pos)
+    w_pos = _resolve_class_weight(cfg["training"].get("class_weight_positive", 6.0), n_pos, n_neg)
     pos_weight = torch.tensor([w_neg, w_pos], dtype=torch.float32).to(device)
     criterion  = nn.CrossEntropyLoss(weight=pos_weight)
     metrics    = _evaluate(model, test_loader, criterion, device)
@@ -275,3 +283,14 @@ def _build_optimizer(model: nn.Module, opt_cfg: dict) -> torch.optim.Optimizer:
     if name == "adam":
         return torch.optim.Adam(model.parameters(), lr=lr, weight_decay=wd)
     raise ValueError(f"Unknown optimizer: '{name}'. Supported: adamw, adam.")
+
+
+def _resolve_class_weight(value, this_count: int, other_count: int) -> float:
+    """Resolve a numeric or 'auto' class weight."""
+    if isinstance(value, str):
+        if value.lower() != "auto":
+            raise ValueError(f"Unsupported class weight value: {value}")
+        if this_count <= 0:
+            return 1.0
+        return float(other_count / this_count)
+    return float(value)

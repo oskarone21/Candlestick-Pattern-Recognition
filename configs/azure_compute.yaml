@@ -1,0 +1,6 @@
+# Azure ML compute-instance override.
+# Recommended when the repo lives under ~/cloudfiles/code/... and the dataset
+# is stored on the compute node's local SSD for better read performance.
+
+data_source:
+  file_path: /home/azureuser/data/spy_1min_clean.csv
