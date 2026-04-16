@@ -3,6 +3,7 @@ Train TCN models for all four candlestick patterns sequentially.
 Saves checkpoints and metrics per pattern under outputs/<pattern>/.
 """
 
+import argparse
 import os, json, copy, warnings
 import yaml
 import torch
@@ -32,9 +33,32 @@ from src.training.augment  import augment_positives
 from src.training.trainer  import train, evaluate_test
 from src.models.tcn        import build_model
 
+
+def _deep_merge(base: dict, override: dict) -> dict:
+    """Recursively merge override into base (override wins on conflicts)."""
+    result = copy.deepcopy(base)
+    for k, v in override.items():
+        if k in result and isinstance(result[k], dict) and isinstance(v, dict):
+            result[k] = _deep_merge(result[k], v)
+        else:
+            result[k] = copy.deepcopy(v)
+    return result
+
+
+parser = argparse.ArgumentParser(description="Train TCN on all 4 candlestick patterns.")
+parser.add_argument("--config-override", default=None,
+                    help="Path to a YAML override file merged on top of configs/config.yaml")
+args = parser.parse_args()
+
 # ── load config & data once ───────────────────────────────────────────────────
 with open(os.path.join(ROOT, "configs/config.yaml"), encoding="utf-8") as f:
     BASE_CFG = yaml.safe_load(f)
+
+if args.config_override:
+    with open(args.config_override, encoding="utf-8") as f:
+        override = yaml.safe_load(f)
+    BASE_CFG = _deep_merge(BASE_CFG, override)
+    print(f"Config override loaded: {args.config_override}")
 
 device = torch.device(
     "cuda" if torch.cuda.is_available() and BASE_CFG["project"]["device"] != "cpu"

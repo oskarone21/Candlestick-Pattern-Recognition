@@ -19,7 +19,10 @@ configs/local/*.yaml
 
 # Large/private datasets
 data/nq_1min.csv
+data/nq_1min_clean.csv
 data/QQQ_1d.csv
+data/spy_1min_clean.csv
+data/1_min_SPY_2008-2021.csv
 
 # Generated artifacts
 outputs/

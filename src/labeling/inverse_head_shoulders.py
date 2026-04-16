@@ -54,8 +54,14 @@ def label_inverse_head_shoulders(
     positives: list[LabeledWindow] = []
     hard_negs: list[LabeledWindow] = []
 
-    quintuples = _get_trough_peak_trough_peak_trough_quintuples(extrema)
-    print(f"[inverse_head_shoulders] Checking {len(quintuples)} trough-peak-trough-peak-trough quintuples ...")
+    non_consec = ihs_cfg.get("non_consecutive_scan", False)
+    max_sep    = ihs_cfg["geometry"]["max_trough_separation_bars"]
+    if non_consec:
+        quintuples = _get_nonconsec_trough_quintuples(extrema, max_sep)
+        print(f"[inverse_head_shoulders] NON-CONSECUTIVE scan: {len(quintuples)} trough triplet candidates ...")
+    else:
+        quintuples = _get_trough_peak_trough_peak_trough_quintuples(extrema)
+        print(f"[inverse_head_shoulders] Checking {len(quintuples)} trough-peak-trough-peak-trough quintuples ...")
 
     geo_fail = vol_fail = partial = confirmed = 0
 
@@ -263,6 +269,51 @@ def _get_trough_peak_trough_peak_trough_quintuples(extrema):
                 e3["kind"] == "trough" and e4["kind"] == "peak" and
                 e5["kind"] == "trough"):
             quintuples.append((e1, e2, e3, e4, e5))
+    return quintuples
+
+
+def _get_nonconsec_trough_quintuples(extrema, max_sep_bars: int):
+    """Non-consecutive IHS scan.
+
+    All trough triplets (E1, E3, E5) where each inter-trough gap <= max_sep_bars.
+    E2 = highest peak between E1 and E3.
+    E4 = highest peak between E3 and E5.
+    Deduplicates by (e3_bar, e5_bar).
+    """
+    import numpy as np
+    rows    = extrema.to_dict("records")
+    troughs = [r for r in rows if r["kind"] == "trough"]
+    peaks   = [r for r in rows if r["kind"] == "peak"]
+    pbars   = np.array([p["bar_idx"] for p in peaks])
+
+    quintuples = []
+    seen_e3_e5 = set()
+
+    nt = len(troughs)
+    for i in range(nt):
+        e1 = troughs[i]
+        for j in range(i + 1, nt):
+            e3 = troughs[j]
+            if e3["bar_idx"] - e1["bar_idx"] > max_sep_bars:
+                break
+            mask12 = (pbars > e1["bar_idx"]) & (pbars < e3["bar_idx"])
+            if not mask12.any():
+                continue
+            e2 = max((peaks[k] for k in np.where(mask12)[0]), key=lambda p: p["price"])
+            for k in range(j + 1, nt):
+                e5 = troughs[k]
+                if e5["bar_idx"] - e3["bar_idx"] > max_sep_bars:
+                    break
+                key = (e3["bar_idx"], e5["bar_idx"])
+                if key in seen_e3_e5:
+                    continue
+                mask34 = (pbars > e3["bar_idx"]) & (pbars < e5["bar_idx"])
+                if not mask34.any():
+                    continue
+                e4 = max((peaks[m] for m in np.where(mask34)[0]), key=lambda p: p["price"])
+                seen_e3_e5.add(key)
+                quintuples.append((e1, e2, e3, e4, e5))
+
     return quintuples
 
 

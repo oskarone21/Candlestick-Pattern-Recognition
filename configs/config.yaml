@@ -12,8 +12,8 @@ approach:
 
 data_source:
   provider: csv                              # Data source type
-  file_path: data/nq_1min.csv               # NQ E-mini 1-min OHLCV data
-  instrument: NQ                             # Instrument tag for metadata
+  file_path: data/spy_1min_clean.csv         # SPY 1-min OHLCV data
+  instrument: SPY                            # Instrument tag for metadata
   delimiter: ","                             # CSV delimiter
   has_header: true                           # CSV includes column header row
 
