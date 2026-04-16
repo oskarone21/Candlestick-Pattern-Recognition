@@ -272,15 +272,7 @@ def _find_breakout(
 
     for bar in range(search_start, search_end):
         if close_arr[bar] > target_price:
-            # 收盘价突破颈线 + 确认比例，检查是否有成交量放大
-            from src.labeling.double_bottom import _check_breakout_volume
-            if _check_breakout_volume(bar, volume_arr, conf_cfg,
-                                       {"volume_rules": {
-                                           "breakout_volume_min_multiplier":
-                                               conf_cfg.get("breakout_volume_average_bars", 1.5)
-                                       }}):
-                return bar
-            # 即使成交量未放大也接受突破
+            # 收盘价突破颈线 + 确认比例，即接受突破
             # （成交量主要在谷底层面验证，突破处成交量为次级检查）
             return bar
 

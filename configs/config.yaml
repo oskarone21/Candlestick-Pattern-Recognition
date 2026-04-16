@@ -12,8 +12,8 @@ approach:
 
 data_source:
   provider: csv                              # Data source type
-  file_path: data/QQQ_1d.csv                 # QQQ daily data from Yahoo Finance
-  instrument: QQQ                            # Instrument tag for metadata
+  file_path: data/nq_1min.csv               # NQ E-mini 1-min OHLCV data
+  instrument: NQ                             # Instrument tag for metadata
   delimiter: ","                             # CSV delimiter
   has_header: true                           # CSV includes column header row
 
@@ -34,13 +34,13 @@ data_source:
     drop_duplicates: true                    # Remove duplicate timestamps if any
     dropna_ohlcv: true                       # Drop rows with missing OHLCV values
     enforce_numeric_ohlcv: true              # Cast and validate OHLCV as numeric
-    expected_base_frequency: 1d             # Expected source granularity
+    expected_base_frequency: 1min           # Expected source granularity
     allow_market_close_gap: true             # Keep known session close gaps
     market_close_gap_minutes: 60             # Expected close gap duration
 
 resampling:
-  base_timeframe: 1d                          # Input granularity from source data
-  target_timeframe: 1d                        # Training granularity (daily)
+  base_timeframe: 1min                       # Input granularity from source data
+  target_timeframe: 15min                    # Training granularity (15-minute)
   drop_incomplete_bars: true                 # Drop partial bars at boundaries
   ohlcv_agg:
     open: first                              # Standard OHLCV resample rule

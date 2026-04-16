@@ -56,12 +56,14 @@ PATTERNS = [
     ("head_shoulders",         label_head_shoulders),
     ("inverse_head_shoulders", label_inverse_head_shoulders),
     ("double_top",             label_double_top),
+    ("double_bottom",          label_double_bottom),
 ]
 
 PATTERN_LABELS = {
     "head_shoulders":         ("Other", "Head & Shoulders"),
     "inverse_head_shoulders": ("Other", "Inverse H&S"),
     "double_top":             ("Other", "Double Top"),
+    "double_bottom":          ("Other", "Double Bottom"),
 }
 
 all_results = {}
