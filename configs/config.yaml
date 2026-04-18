@@ -1,62 +1,81 @@
 # Shared single source of truth for reproducible runs.
 
 project:
-  name: candlestick-pattern-recognition      # Project identifier in logs/artifacts
-  run_name: nq_sequence_baseline_15m_v1      # Experiment/run name
-  seed: 42                                   # Random seed for reproducibility
-  device: auto                               # auto | cpu | cuda
+  name: candlestick-pattern-recognition
+  run_name: spy_15m_kaggle_suite_v1
+  seed: 42
+  device: auto                              # auto | cpu | cuda
 
 approach:
-  primary_model_type: sequence               # sequence | image
-  run_image_baseline: false                  # Keep false unless comparing with CNN
+  primary_model_type: sequence
+  run_image_baseline: false
 
+# -----------------------------
+# Data source and preprocessing
+# -----------------------------
 data_source:
-  provider: csv                              # Data source type
-  file_path: data/QQQ_1d.csv                 # QQQ daily data from Yahoo Finance
-  instrument: QQQ                            # Instrument tag for metadata
-  delimiter: ","                             # CSV delimiter
-  has_header: true                           # CSV includes column header row
+  provider: kagglehub
+  kaggle_dataset: gratefuldata/intraday-stock-data-1-min-sp-500-200821
+  kaggle_file_path: 1_min_SPY_2008-2021.csv # Verified Kaggle file name for this dataset
+  kaggle_pandas_kwargs: {}
+
+  instrument: SPY
 
   timestamp:
-    column: ts_event                         # Timestamp column in CSV
-    timezone_in_data: UTC                    # Source timezone in file (+00:00)
-    convert_to_timezone: America/New_York    # Working timezone used in pipeline
-    sort_ascending: true                     # Ensure time order before processing
+    column: date
+    timezone_in_data: America/Denver        # Inferred from session coverage; converts to full 09:30-16:00 ET
+    convert_to_timezone: America/New_York
+    sort_ascending: true
 
   columns:
-    open: Open                               # Open price column
-    high: High                               # High price column
-    low: Low                                 # Low price column
-    close: Close                             # Close price column
-    volume: Volume                           # Volume column
+    symbol: symbol
+    open: open
+    high: high
+    low: low
+    close: close
+    volume: volume
 
   quality:
-    drop_duplicates: true                    # Remove duplicate timestamps if any
-    dropna_ohlcv: true                       # Drop rows with missing OHLCV values
-    enforce_numeric_ohlcv: true              # Cast and validate OHLCV as numeric
-    expected_base_frequency: 1d             # Expected source granularity
-    allow_market_close_gap: true             # Keep known session close gaps
-    market_close_gap_minutes: 60             # Expected close gap duration
+    drop_duplicates: true
+    dropna_ohlcv: true
+    enforce_numeric_ohlcv: true
+
+  session:
+    regular_session_only: true
+    calendar: XNYS
+    start: "09:30"
+    end: "16:00"
+    early_close_end: "13:00"
+    keep_official_early_closes: true
+    drop_anomalous_partial_days: true
 
 resampling:
-  base_timeframe: 1d                          # Input granularity from source data
-  target_timeframe: 1d                        # Training granularity (daily)
-  drop_incomplete_bars: true                 # Drop partial bars at boundaries
+  base_timeframe: 1min
+  target_timeframe: 15min
+  drop_incomplete_bars: true
   ohlcv_agg:
-    open: first                              # Standard OHLCV resample rule
+    open: first
     high: max
     low: min
     close: last
     volume: sum
 
 windowing:
-  lookback_bars: 80                          # Bars included in each sample window
-  stride: 1                                  # Sliding-window step
+  lookback_bars: 80
+  stride: 1
 
+# -----------------------------
+# Labeling (schema v2)
+# -----------------------------
 labeling:
-  schema_version: 2                          # Strict academic labeling schema
-  active_pattern: head_shoulders             # head_shoulders | inverse_head_shoulders | double_top | double_bottom
-  strategy: one_vs_rest_binary               # Separate binary model per active pattern
+  schema_version: 2
+  allowed_patterns:
+    - head_shoulders
+    - inverse_head_shoulders
+    - double_top
+    - double_bottom
+  active_pattern: head_shoulders
+  strategy: one_vs_rest_binary
 
   classes:
     positive_label: 1
@@ -65,24 +84,27 @@ labeling:
     negative_name: other
 
   extrema_detection:
-    method: nadaraya_watson                  # Nonparametric smoothing before extrema extraction
+    method: nadaraya_watson
     price_field: close
     smoothing:
       kernel: gaussian
+      causal: true                           # trailing-only smoothing to avoid future-bar leakage
       bandwidth:
-        selection_method: aicc               # Data-driven bandwidth selection
+        selection_method: aicc
         lookback_bars: 120
         min_bandwidth: 2.0
         max_bandwidth: 30.0
+        default_bandwidth: 7.0
     extrema_validation:
       derivative_method: central_difference
+      causal: true                           # one-bar delayed causal extrema confirmation
       zero_crossing_epsilon: 1.0e-6
       min_second_derivative_abs: 1.0e-7
       enforce_alternation: true
       min_extrema_separation_bars: 2
 
   confirmation:
-    breakout_confirmation_pct: 0.04          # 4% default within the 3-5% literature range
+    breakout_confirmation_pct: 0.04
     confirm_break_within_bars: 8
     breakout_volume_average_bars: 20
 
@@ -155,45 +177,109 @@ labeling:
       require_first_trough_volume_greater_than_second: true
       breakout_volume_min_multiplier: 1.5
 
+# -----------------------------
+# Models and training
+# -----------------------------
 model:
-  input_type: sequence                       # sequence | image
-  architecture: tcn                          # For sequence mode: tcn | lstm | transformer
-  image_backbone: resnet18                   # Used only if input_type=image
-  pretrained_image_backbone: true            # Used only for image backbone
-  num_classes: 2                             # Binary: pattern vs other (see labeling.active_pattern)
-  dropout: 0.2                               # Classifier dropout
+  input_type: sequence
+  architecture: tcn
+  image_backbone: resnet18
+  pretrained_image_backbone: true
+  num_classes: 2
+  dropout: 0.2
+
+model_selection:
+  candidate_models:
+    - logreg
+    - lstm
+    - tcn
+  primary_selection_metric: f2
+  precision_floor: 0.50
+  recall_floor: 0.0
 
 training:
-  batch_size: 64                             # Samples per gradient step
-  epochs: 30                                 # Maximum number of training epochs
-  mixed_precision: true                      # AMP training for speed/memory
-  early_stopping_patience: 7                 # Stop if metric does not improve
+  batch_size: 64
+  epochs: 50
+  mixed_precision: true
+  early_stopping_patience: 8
+  num_workers: 0
+  persistent_workers: false
 
 optimizer:
-  name: adamw                                # Optimizer type
-  lr: 0.0003                                 # Learning rate
-  weight_decay: 0.0001                       # L2 regularization strength
+  name: adamw
+  lr: 0.0003
+  weight_decay: 0.0001
 
 evaluation:
-  split_method: time                         # Use time-based split to reduce leakage
-  train_ratio: 0.70                          # Train split ratio
-  val_ratio: 0.15                            # Validation split ratio
-  test_ratio: 0.15                           # Test split ratio
-  metrics:                                   # Reported metrics
-    - accuracy
-    - precision_macro
-    - recall_macro
-    - f1_macro
+  split_method: time
+  train_ratio: 0.60
+  val_ratio: 0.20
+  test_ratio: 0.20
+  embargo_bars: 88                        # lookback + confirmation horizon
+  enforce_min_embargo: true               # guards against train/val/test overlap leakage
+  allow_zero_embargo_fallback: false      # fail fast instead of silently dropping purge gap
+  minimum_validation_positive_support: 5  # champion selection support gate (validation-driven)
+  minimum_test_positive_support: 5
+  bootstrap_iterations: 300
+  threshold_grid_size: 181
+  metrics:
+    - precision
+    - recall
+    - f1
+    - f2
+    - pr_auc
+
+optuna:
+  enabled: true
+  tuned_models:
+    - lstm
+    - tcn
+  n_trials: 24
+  timeout_hours: 10
+  epochs_per_trial: 10
+  storage_path: outputs/optuna/studies.db
+
+# -----------------------------
+# Backtest and visual verification
+# -----------------------------
+backtest:
+  entry_rule: next_bar_open
+  tp_rule: r_multiple
+  tp_secondary_rule: nearest_swing
+  sl_rule: risk_based_pattern_invalidation
+  capital_base: 1000000
+  sizing_mode: risk_based
+  risk_per_trade_bps: 25
+  max_portfolio_heat_bps: 100
+  max_open_positions: 4
+  allow_same_pattern_overlap: false
+  target_r_multiple: 1.5
+  stop_atr_multiple: 1.0
+  time_stop_bars: 26
+  transaction_cost_bps_per_side: 1
+  slippage_bps_per_side: 0.5
 
 chart_images:
-  enabled: false                             # true only when training image models
-  width_px: 224                              # Chart image width
-  height_px: 224                             # Chart image height
-  candles_per_image: 80                      # Candles rendered per sample image
-  show_volume: true                          # Include volume panel in rendered chart
-  output_format: png                         # Saved image format
+  enabled: true
+  width_px: 1280
+  height_px: 720
+  candles_per_image: 80
+  show_volume: true
+  output_format: png
+  gallery_lookforward_bars: 20
+  gallery_max_per_bucket: 12
 
 paths:
-  outputs_root: outputs                      # Root directory for all run artifacts
-  checkpoints_dir: outputs/checkpoints       # Model checkpoints
-  metrics_dir: outputs/metrics               # Metrics and reports
+  raw_1m_path: data/raw/spy_1m.csv
+  cleaned_1m_path: data/processed/spy_1m_cleaned.csv
+  processed_15m_path: data/processed/spy_15m.csv
+  outputs_root: outputs
+  checkpoints_dir: outputs/checkpoints
+  metrics_dir: outputs/metrics
+  datasets_dir: outputs/datasets
+  backtest_dir: outputs/backtest
+  gallery_dir: outputs/gallery
+  timezone_report: outputs/data_quality/timezone_report.json
+  raw_1m_quality_report: outputs/data_quality/raw_1m_quality_report.json
+  session_coverage_report: outputs/data_quality/session_coverage_report.csv
+  data_quality_report: outputs/data_quality/prep_quality_report.json

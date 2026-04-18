@@ -1,227 +1,147 @@
-# Automated Candlestick Chart Pattern Recognition
+# Automated Candlestick Pattern Recognition (SPY 15-Min Prototype)
 
-This repository contains a deep learning project for automated chart-pattern recognition from futures OHLCV data.
+This repository now implements an end-to-end, config-driven prototype for detecting four classic chart patterns on **15-minute SPY bars** derived from Kaggle 1-minute intraday data:
 
-The updated project approach is hybrid:
-- Primary path: rule-based pattern labeling + sequence modeling on OHLCV windows
-- Optional comparison path: candlestick image rendering + CNN baseline
+- Head and Shoulders
+- Inverse Head and Shoulders
+- Double Top
+- Double Bottom
 
-## Important data file note
+The pipeline includes:
 
-Before running the project, manually place `nq_1min.csv` inside the `data/` folder (`data/nq_1min.csv`). This file is too large to store in this GitHub repository.
+- Kaggle ingestion with schema normalization
+- timezone audit and conversion (`America/Denver -> America/New_York`)
+- OHLCV cleaning + 1m -> 15m resampling
+- breakout-anchored labeling with hard negatives
+- one-vs-rest model comparison across 5 model families
+- optional Optuna hyperparameter tuning
+- post-breakout trade simulation (PnL, Sharpe, win rate, profit factor, drawdown)
+- TP/FP/FN chart gallery export for visual verification
 
-## Project goal
+## Why this project matters
 
-Investigate whether objective, rule-defined chart patterns can be learned from market data, and compare sequence-based models against optional image-based baselines.
+This prototype is designed as a practical decision-support system for analysts. It shows how objective pattern recognition can reduce manual chart-scanning effort and scale toward broader market coverage while maintaining auditable, reproducible rules.
 
-## Modeling approach
+See business framing in [docs/BUSINESS_IMPACT.md](/Users/oskarrodziewicz/Library/CloudStorage/OneDrive-UniversityofWarwick/Deep%20Learning/Candlestick-Pattern-Recognition/docs/BUSINESS_IMPACT.md).
 
-1. Smooth 15-minute close prices with Nadaraya-Watson kernel regression and extract extrema from first/second derivative conditions.
-2. Build strict geometric labels for head and shoulders, inverse head and shoulders, double top, and double bottom.
-3. Enforce volume-confirmation constraints and assign positive labels only on confirmed neckline breakouts.
-4. Train a primary sequence model directly on OHLCV windows using one-vs-rest binary runs (one pattern per run).
-5. Optionally train an image-CNN baseline on rendered candlestick windows for comparison.
-6. Evaluate all approaches on the same time-based split using precision, recall, and F1.
+## Repository structure
 
-Why this approach:
+- [configs/config.yaml](/Users/oskarrodziewicz/Library/CloudStorage/OneDrive-UniversityofWarwick/Deep%20Learning/Candlestick-Pattern-Recognition/configs/config.yaml): single source of truth for data, labeling, models, tuning, and backtesting
+- `candlestick/`: core library modules
+- `scripts/`: runnable pipeline entrypoints
+- `tests/`: unit + integration smoke tests
+- [PATTERNS_EXPLAINED.md](/Users/oskarrodziewicz/Library/CloudStorage/OneDrive-UniversityofWarwick/Deep%20Learning/Candlestick-Pattern-Recognition/PATTERNS_EXPLAINED.md): mathematical definitions and implementation contract
 
-- Pattern definitions stay auditable and reproducible.
-- Labels are tied to academically defined breakout events, reducing target noise.
-- Sequence models use raw market structure directly and avoid chart-rendering artifacts.
-- Optional image baseline still lets the team test the original vision idea.
+## Setup
 
-## Academic basis and justification
-
-The labeling schema in `configs/config.yaml` and formulas in `PATTERNS_EXPLAINED.md` are based on the following literature:
-
-- Lo, Mamaysky, and Wang (2000): formalized technical pattern detection with nonparametric methods and statistical testing. Link: `https://doi.org/10.1111/0022-1082.00265`
-- Osler and Chang (1995): objective algorithmic head-and-shoulders detection with out-of-sample style evaluation. Link: `https://www.newyorkfed.org/research/staff_reports/sr4.html`
-- Savin, Weller, and Zvingelis (2007): predictive power evidence for head-and-shoulders in U.S. equities. Link: `https://doi.org/10.1093/jjfinec/nbl012`
-- Nadaraya (1964): foundational kernel regression estimator used for smoothing noisy price series. Link: `https://doi.org/10.1137/1109020`
-- Hurvich, Simonoff, and Tsai (1998): improved AIC (AICc) for nonparametric smoothing parameter selection. Link: `https://doi.org/10.1111/1467-9868.00125`
-- Bulkowski (3rd ed.): empirical breakout and volume confirmation heuristics used as practical bounds in configuration.
-
-## Team development standards
-
-See `TEAM_STANDARDS.md` for shared coding conventions, config usage rules, and AI-assisted development practices. This keeps team contributions consistent and prevents accidental drift from the shared configuration and workflow.
-
-## Configuration
-
-The single source of truth is `configs/config.yaml`.
-
-- Change shared defaults there (timeframe, labels, optimizer, training settings).
-- Use local override files for personal experiments.
-- `chart_images` controls candlestick rendering and is only used when image input is enabled.
-
-## Tech stack
-
-- Data processing: `numpy`, `pandas`
-- Chart rendering and image handling: `matplotlib`, `mplfinance`, `pillow`, `opencv-python-headless`
-- Data augmentation: `albumentations`
-- Deep learning: `torch`, `torchvision`
-- Training and evaluation: `scikit-learn`, `tqdm`, `tensorboard`
-- Utilities and notebooks: `pyyaml`, `jupyterlab`, `ipykernel`
-
-All pinned versions are listed in `requirements.txt`.
-
-## Prerequisites
-
-- Git
-- Docker Desktop, or Docker Engine with Compose plugin
-- For GPU mode: NVIDIA GPU, recent NVIDIA drivers, and NVIDIA container runtime support
-- Optional local setup: Python virtual environment support
-
-## Docker workflow (main setup)
-
-Docker is the shared Python environment for this project:
-
-- The image contains Python and all required packages.
-- The container runs scripts and Jupyter Lab.
-- The repository folder is mounted into the container, so notebooks and outputs persist on your machine.
-
-### 1) Clone the repository
+Install dependencies:
 
 ```bash
-git clone https://github.com/oskarone21/Candlestick-Pattern-Recognition.git
-cd Candlestick-Pattern-Recognition
+pip install -r requirements.txt
 ```
 
-### 2) Build the Docker image
+## End-to-end runbook
+
+### 1) Download raw SPY intraday data from Kaggle
 
 ```bash
-docker compose build
+python scripts/download_kaggle_intraday.py --config configs/config.yaml
 ```
 
-If you are using Apple Silicon and hit an architecture issue:
+Notes:
+- Uses `kagglehub.load_dataset(...)` and the dataset handle configured in `data_source.kaggle_dataset`.
+- Set `data_source.kaggle_file_path` in config to match the exact CSV inside Kaggle.
+
+### 2) Clean, audit timezone, and resample to 15-minute bars
 
 ```bash
-DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose build
+python scripts/prepare_15m_dataset.py --config configs/config.yaml
 ```
 
-## Run the container
+Outputs:
+- `paths.cleaned_1m_path` (default `data/processed/spy_1m_cleaned.csv`)
+- `paths.processed_15m_path` (default `data/processed/spy_15m.csv`)
+- raw data quality report (`paths.raw_1m_quality_report`)
+- timezone audit report (`paths.timezone_report`)
+- session coverage report (`paths.session_coverage_report`)
+- data quality report (`paths.data_quality_report`)
 
-### Option 1: Open a shell
-
-GPU mode:
+### 3) Train and compare models (one-vs-rest per pattern)
 
 ```bash
-docker compose run --rm app bash
+python scripts/run_experiment_suite.py --config configs/config.yaml
 ```
 
-CPU mode:
+Default candidate models:
+- `logreg`
+- `hgb`
+- `lstm`
+- `tcn`
+- `transformer`
+
+Optuna settings are controlled under `optuna:` in config.
+
+Outputs (per run name):
+- model metrics JSONs
+- per-model test predictions
+- champion model table (`champions.csv`, selected on validation only)
+- macro summary (`macro_summary.json`)
+
+### 4) Backtest champion signals
 
 ```bash
-docker compose -f docker-compose.cpu.yml run --rm app bash
+python scripts/run_backtest.py --config configs/config.yaml
 ```
 
-### Option 2: Run Jupyter Lab (recommended)
+Backtest policy (configurable):
+- entry: next bar open after breakout signal
+- TP: measured move (primary)
+- SL: pattern invalidation plus ATR buffer
+- exit: TP / SL / time stop
+- metrics: total PnL, Sharpe, win rate, profit factor, max drawdown, expectancy
 
-GPU mode:
+### 5) Render visual verification gallery
 
 ```bash
-docker compose run --rm --service-ports app jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
+python scripts/render_pattern_gallery.py --config configs/config.yaml
 ```
 
-CPU mode:
+Generates TP/FP/FN images for manual sanity checking.
+
+## Reliability and leakage controls
+
+Implemented controls include:
+- strict time-based split
+- enforced minimum embargo around split boundaries (`lookback + confirmation horizon`)
+- fail-fast behavior when embargo would empty val/test folds (no silent zero-embargo fallback)
+- champion selection on validation only (no test-set model picking)
+- hard-negative downsampling applied to train only (validation/test stay untouched)
+- causal smoothing/extrema detection for pattern events (no future-bar dependence)
+- train-only fit behavior for model preprocessing
+- breakout-time label anchoring
+- confidence intervals (bootstrap) for precision, recall, and F1
+- minimum test positive-support gate before reliability claims
+
+## Smoke test (CI/local quick check)
 
 ```bash
-docker compose -f docker-compose.cpu.yml run --rm --service-ports app jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
+pytest -q
 ```
 
-Open:
+Test suite includes ingestion mapping, timezone conversion, resampling, pattern fixtures, leakage-safe splitting, metric reproducibility, backtest arithmetic, and integration smoke run.
 
-```text
-http://localhost:8888
-```
+## Config-first experimentation
 
-Jupyter prints an access token in the terminal when it starts.
-
-## Automatic GPU/CPU selection
-
-The helper script checks Docker runtime support. If NVIDIA runtime is available, it uses GPU mode; otherwise it falls back to CPU mode.
+Use `--config-override` and/or `--set` for controlled experiments:
 
 ```bash
-bash scripts/dev-shell.sh
+python scripts/run_experiment_suite.py \
+  --config configs/config.yaml \
+  --set project.run_name=overnight_optuna \
+  --set optuna.enabled=true \
+  --set optuna.n_trials=200
 ```
 
-Pass a command directly if needed:
+## Academic transparency
 
-```bash
-bash scripts/dev-shell.sh python -c "import torch; print(torch.cuda.is_available())"
-```
-
-## Verify CUDA availability
-
-Inside the container, run:
-
-```bash
-python -c "import torch; print('CUDA available:', torch.cuda.is_available()); print('Device:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'None')"
-```
-
-Expected output:
-
-- Mac or CPU mode: `CUDA available: False`
-- GPU machines: `CUDA available: True` and a GPU name
-
-## Working with notebooks
-
-Create notebooks inside this repository (for example in `notebooks/`). Because the project folder is mounted into the container, notebook files persist locally and can be committed to Git.
-
-## Optional local setup (without Docker)
-
-macOS/Linux:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install --extra-index-url https://download.pytorch.org/whl/cu124 -r requirements.txt
-```
-
-Windows PowerShell:
-
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install --upgrade pip
-pip install --extra-index-url https://download.pytorch.org/whl/cu124 -r requirements.txt
-```
-
-## Key project files
-
-- `Dockerfile` - CUDA-enabled PyTorch base image and dependency installation
-- `docker-compose.yml` - default Docker Compose configuration with GPU access
-- `docker-compose.cpu.yml` - Compose override for systems without NVIDIA runtime support
-- `scripts/dev-shell.sh` - helper script that automatically selects GPU or CPU mode
-- `configs/config.yaml` - shared experiment and pipeline configuration
-- `TEAM_STANDARDS.md` - team-wide coding, configuration, and collaboration standards
-- `.dockerignore` - excludes large or temporary files from Docker build context
-- `requirements.txt` - pinned Python package versions
-
-## Troubleshooting
-
-### Docker is not running
-
-Start Docker Desktop (or Docker daemon) before running Compose commands.
-
-### Port 8888 is already in use
-
-Run Jupyter on another port:
-
-```bash
-docker compose run --rm --service-ports app jupyter lab --ip=0.0.0.0 --port=8890 --no-browser --allow-root
-```
-
-Then open `http://localhost:8890`.
-
-### No GPU detected
-
-Use CPU mode:
-
-```bash
-docker compose -f docker-compose.cpu.yml run --rm app bash
-```
-
-### Apple Silicon
-
-Apple Silicon does not support CUDA. Use CPU mode.
+Pattern math and assumptions are documented in [PATTERNS_EXPLAINED.md](/Users/oskarrodziewicz/Library/CloudStorage/OneDrive-UniversityofWarwick/Deep%20Learning/Candlestick-Pattern-Recognition/PATTERNS_EXPLAINED.md), including breakout confirmation logic and 15-minute timeframe assumptions.

@@ -20,8 +20,14 @@ configs/local/*.yaml
 # Large/private datasets
 data/nq_1min.csv
 data/QQQ_1d.csv
+data/raw/*.csv
+data/processed/*.csv
 
 # Generated artifacts
 outputs/
 logs/
 checkpoints/
+web-dashboard/node_modules/
+web-dashboard/build/
+web-dashboard/.react-router/
+web-dashboard/.generated/
