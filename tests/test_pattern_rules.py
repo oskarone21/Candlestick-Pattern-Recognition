@@ -76,3 +76,15 @@ def test_pattern_negative_reason_appears(base_cfg):
     events = detect_pattern_events(df, "double_top", cfg)
     assert not events.empty
     assert set(events["reason"]).intersection({"failed_breakout", "near_miss"})
+
+
+def test_pattern_outputs_keep_string_values(base_cfg):
+    cfg = _test_cfg(base_cfg)
+    df = _df_from_close([16, 15, 14, 12, 13, 14, 15, 14, 12.1, 13, 14, 15.2, 15.5])
+
+    events = detect_pattern_events(df, "double_bottom", cfg)
+
+    assert not events.empty
+    assert set(events["pattern"]) == {"double_bottom"}
+    assert set(events["direction"]) == {"long"}
+    assert set(events["reason"]).issubset({"confirmed_breakout", "failed_breakout", "near_miss", "partial"})

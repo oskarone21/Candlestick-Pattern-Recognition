@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from candlestick.config import ensure_dir
+from candlestick.domain import GALLERY_BUCKET_FN, GALLERY_BUCKET_FP, GALLERY_BUCKET_TP
 
 
 def _plot_window(
@@ -75,14 +76,14 @@ def render_pattern_gallery(
     preds = pred_df.copy()
 
     if preds.empty:
-        return {"tp": 0, "fp": 0, "fn": 0}
+        return {GALLERY_BUCKET_TP: 0, GALLERY_BUCKET_FP: 0, GALLERY_BUCKET_FN: 0}
 
     preds["y_pred"] = (preds["proba"] >= threshold).astype(int)
 
     buckets = {
-        "tp": preds[(preds["label"] == 1) & (preds["y_pred"] == 1)],
-        "fp": preds[(preds["label"] == 0) & (preds["y_pred"] == 1)],
-        "fn": preds[(preds["label"] == 1) & (preds["y_pred"] == 0)],
+        GALLERY_BUCKET_TP: preds[(preds["label"] == 1) & (preds["y_pred"] == 1)],
+        GALLERY_BUCKET_FP: preds[(preds["label"] == 0) & (preds["y_pred"] == 1)],
+        GALLERY_BUCKET_FN: preds[(preds["label"] == 1) & (preds["y_pred"] == 0)],
     }
 
     out_root = ensure_dir(output_dir)

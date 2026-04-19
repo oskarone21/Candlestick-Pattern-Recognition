@@ -13,16 +13,24 @@ export type ClassificationRow = {
   pattern: string;
   model: string;
   selection_split: string;
+  selection_metric?: string;
+  selection_metric_value?: number;
   selection_f1: number;
+  selection_f2?: number;
   selection_precision: number;
   selection_recall: number;
   f1: number;
+  f2?: number;
   precision: number;
   recall: number;
   pr_auc: number;
   threshold: number;
   support_positive: number;
   support_negative: number;
+  train_positive_support?: number;
+  val_positive_support?: number;
+  test_positive_support?: number;
+  presentation_eligible?: boolean;
 };
 
 export type ClassificationDetailRow = {
@@ -38,6 +46,10 @@ export type ClassificationDetailRow = {
   recall_ci_low?: number | null;
   recall_ci_high?: number | null;
   confusion_matrix?: Record<string, number>;
+  train_positive_support?: number;
+  val_positive_support?: number;
+  test_positive_support?: number;
+  presentation_eligible?: boolean;
 };
 
 export type ChampionRow = {
@@ -50,6 +62,10 @@ export type ChampionRow = {
   test_precision: number;
   test_recall: number;
   test_pr_auc: number;
+  train_positive_support?: number;
+  val_positive_support?: number;
+  test_positive_support?: number;
+  presentation_eligible?: boolean;
   trades: number;
   total_pnl: number;
   win_rate: number;
@@ -72,6 +88,10 @@ export type BacktestPairRow = {
   threshold: number;
   support_positive: number;
   support_negative: number;
+  train_positive_support?: number;
+  val_positive_support?: number;
+  test_positive_support?: number;
+  presentation_eligible?: boolean;
   trades: number;
   total_pnl: number;
   win_rate: number;
@@ -143,6 +163,15 @@ export type DashboardSnapshot = {
     };
     macro?: Record<string, unknown>;
   };
+  presentation: {
+    presentation_eligible: boolean;
+    visible_patterns: string[];
+    hidden_patterns: string[];
+    quality_score: number;
+    presentation_reason: string;
+    mean_visible_champion_f1: number;
+    mean_visible_champion_pr_auc: number;
+  };
   classification: {
     summary_rows: ClassificationRow[];
     detail_rows: ClassificationDetailRow[];
@@ -197,6 +226,10 @@ const compactCurrencyFormatter = new Intl.NumberFormat("en-GB", {
   maximumFractionDigits: 1,
 });
 
+function simplifyUsdSymbol(value: string) {
+  return value.replace("US$", "$");
+}
+
 export function formatPercent(value: number | null | undefined, digits = 1) {
   if (value == null || Number.isNaN(value)) {
     return "—";
@@ -211,7 +244,8 @@ export function formatCurrency(value: number | null | undefined, compact = false
   if (value == null || Number.isNaN(value)) {
     return "—";
   }
-  return compact ? compactCurrencyFormatter.format(value) : currencyFormatter.format(value);
+  const rendered = compact ? compactCurrencyFormatter.format(value) : currencyFormatter.format(value);
+  return simplifyUsdSymbol(rendered);
 }
 
 export function formatSignedCurrency(value: number | null | undefined, compact = false) {
@@ -219,7 +253,7 @@ export function formatSignedCurrency(value: number | null | undefined, compact =
     return "—";
   }
   const base = compact ? compactCurrencyFormatter : currencyFormatter;
-  const rendered = base.format(Math.abs(value));
+  const rendered = simplifyUsdSymbol(base.format(Math.abs(value)));
   if (value > 0) {
     return `+${rendered}`;
   }
@@ -311,6 +345,24 @@ export function averageByModel(rows: ClassificationRow[]) {
       pr_auc: bucket.pr_auc / bucket.count,
     }))
     .sort((left, right) => right.f1 - left.f1);
+}
+
+export function visiblePatterns(snapshot: DashboardSnapshot) {
+  return snapshot.presentation ? snapshot.presentation.visible_patterns : snapshot.meta.patterns;
+}
+
+export function hiddenPatterns(snapshot: DashboardSnapshot) {
+  return snapshot.presentation?.hidden_patterns ?? [];
+}
+
+export function visibleSummaryRows(snapshot: DashboardSnapshot) {
+  const visible = new Set(visiblePatterns(snapshot));
+  return snapshot.classification.summary_rows.filter((row) => visible.has(row.pattern));
+}
+
+export function visiblePairRows(snapshot: DashboardSnapshot) {
+  const visible = new Set(visiblePatterns(snapshot));
+  return snapshot.backtest.pair_rows.filter((row) => visible.has(row.pattern));
 }
 
 export function patternModelSeriesId(pattern: string, model: string) {

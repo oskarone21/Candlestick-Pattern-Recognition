@@ -8,6 +8,19 @@ import pandas as pd
 from pandas import DatetimeTZDtype
 
 from candlestick.config import ensure_dir
+from candlestick.domain import (
+    COLUMN_CLOSE,
+    COLUMN_HIGH,
+    COLUMN_LOW,
+    COLUMN_OPEN,
+    COLUMN_SYMBOL,
+    COLUMN_TS_EVENT,
+    COLUMN_VOLUME,
+    DEFAULT_SESSION_END,
+    DEFAULT_SESSION_START,
+    DEFAULT_TIMEZONE_IN_DATA,
+    DEFAULT_WORKING_TIMEZONE,
+)
 
 
 def _hhmm_to_minute(value: str) -> int:
@@ -43,7 +56,7 @@ def _timezone_fit_metrics(
             "expected_minutes_per_day": _hhmm_to_minute(session_end) - _hhmm_to_minute(session_start),
         }
 
-    ts = frame["ts_event"]
+    ts = frame[COLUMN_TS_EVENT]
     if isinstance(ts.dtype, DatetimeTZDtype):
         local = ts.dt.tz_convert(timezone_in_data)
     else:
@@ -79,39 +92,49 @@ def _timezone_fit_metrics(
 
 def build_raw_quality_report(cfg: dict[str, Any], raw_df: pd.DataFrame) -> dict[str, Any]:
     out = raw_df.copy()
-    out["ts_event"] = pd.to_datetime(out["ts_event"], errors="coerce")
-    out = out.dropna(subset=["ts_event"]).copy()
+    out[COLUMN_TS_EVENT] = pd.to_datetime(out[COLUMN_TS_EVENT], errors="coerce")
+    out = out.dropna(subset=[COLUMN_TS_EVENT]).copy()
 
     session_cfg = cfg.get("data_source", {}).get("session", {})
     ts_cfg = cfg.get("data_source", {}).get("timestamp", {})
-    session_start = session_cfg.get("start", "09:30")
-    session_end = session_cfg.get("end", "16:00")
-    timezone_in_data = ts_cfg.get("timezone_in_data", "America/Denver")
-    working_timezone = ts_cfg.get("convert_to_timezone", "America/New_York")
+    session_start = session_cfg.get("start", DEFAULT_SESSION_START)
+    session_end = session_cfg.get("end", DEFAULT_SESSION_END)
+    timezone_in_data = ts_cfg.get("timezone_in_data", DEFAULT_TIMEZONE_IN_DATA)
+    working_timezone = ts_cfg.get("convert_to_timezone", DEFAULT_WORKING_TIMEZONE)
 
-    duplicate_symbol_ts = int(out.duplicated(subset=["symbol", "ts_event"]).sum())
+    duplicate_symbol_ts = int(out.duplicated(subset=[COLUMN_SYMBOL, COLUMN_TS_EVENT]).sum())
     duplicate_symbol_ts_ohlcv = int(
-        out.duplicated(subset=["symbol", "ts_event", "open", "high", "low", "close", "volume"]).sum()
+        out.duplicated(
+            subset=[
+                COLUMN_SYMBOL,
+                COLUMN_TS_EVENT,
+                COLUMN_OPEN,
+                COLUMN_HIGH,
+                COLUMN_LOW,
+                COLUMN_CLOSE,
+                COLUMN_VOLUME,
+            ]
+        ).sum()
     )
 
     dedup_exact = out.drop_duplicates(
-        subset=["symbol", "ts_event", "open", "high", "low", "close", "volume"],
+        subset=[COLUMN_SYMBOL, COLUMN_TS_EVENT, COLUMN_OPEN, COLUMN_HIGH, COLUMN_LOW, COLUMN_CLOSE, COLUMN_VOLUME],
         keep="last",
     )
 
-    grouped = dedup_exact.groupby(["symbol", "ts_event"], sort=False).size()
+    grouped = dedup_exact.groupby([COLUMN_SYMBOL, COLUMN_TS_EVENT], sort=False).size()
     conflicting_groups = int((grouped > 1).sum())
 
-    dedup_symbol_ts = out.drop_duplicates(subset=["symbol", "ts_event"], keep="last").copy()
-    daily_unique_minutes = dedup_symbol_ts.groupby(dedup_symbol_ts["ts_event"].dt.date)["ts_event"].nunique()
+    dedup_symbol_ts = out.drop_duplicates(subset=[COLUMN_SYMBOL, COLUMN_TS_EVENT], keep="last").copy()
+    daily_unique_minutes = dedup_symbol_ts.groupby(dedup_symbol_ts[COLUMN_TS_EVENT].dt.date)[COLUMN_TS_EVENT].nunique()
     regime_counts = daily_unique_minutes.value_counts().sort_values(ascending=False)
 
     candidate_timezones = []
     for tz in [
         timezone_in_data,
-        "America/New_York",
+        DEFAULT_WORKING_TIMEZONE,
         "America/Chicago",
-        "America/Denver",
+        DEFAULT_TIMEZONE_IN_DATA,
         "America/Los_Angeles",
         "UTC",
     ]:
@@ -140,8 +163,8 @@ def build_raw_quality_report(cfg: dict[str, Any], raw_df: pd.DataFrame) -> dict[
         "rows": int(len(raw_df)),
         "rows_with_parseable_timestamp": int(len(out)),
         "rows_dropped_for_null_timestamp": int(len(raw_df) - len(out)),
-        "range_start_raw": str(out["ts_event"].min()) if not out.empty else None,
-        "range_end_raw": str(out["ts_event"].max()) if not out.empty else None,
+        "range_start_raw": str(out[COLUMN_TS_EVENT].min()) if not out.empty else None,
+        "range_end_raw": str(out[COLUMN_TS_EVENT].max()) if not out.empty else None,
         "duplicate_symbol_timestamp": duplicate_symbol_ts,
         "duplicate_symbol_timestamp_ohlcv_exact": duplicate_symbol_ts_ohlcv,
         "conflicting_duplicate_groups_symbol_timestamp": conflicting_groups,

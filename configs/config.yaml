@@ -186,6 +186,7 @@ model:
   image_backbone: resnet18
   pretrained_image_backbone: true
   num_classes: 2
+  sequence_normalization_mode: train_zscore  # train_zscore | window_minmax
   dropout: 0.2
 
 model_selection:
@@ -204,6 +205,12 @@ training:
   early_stopping_patience: 8
   num_workers: 0
   persistent_workers: false
+  augmentation:
+    enabled: false
+    n_copies_per_positive: 2
+    gaussian_noise_std: 0.012
+    price_coherent_noise_std: 0.008
+    volume_jitter_range: 0.12
 
 optimizer:
   name: adamw
@@ -255,6 +262,8 @@ backtest:
   allow_same_pattern_overlap: false
   target_r_multiple: 1.5
   stop_atr_multiple: 1.0
+  min_stop_distance_bps: 5
+  max_gross_exposure_multiple: 1.0
   time_stop_bars: 26
   transaction_cost_bps_per_side: 1
   slippage_bps_per_side: 0.5

@@ -2,7 +2,7 @@
 
 This document defines the strict labeling and trade-mapping schema used by this repository.
 
-It is the implementation contract for `labeling.schema_version: 2` in [configs/config.yaml](/Users/oskarrodziewicz/Library/CloudStorage/OneDrive-UniversityofWarwick/Deep%20Learning/Candlestick-Pattern-Recognition/configs/config.yaml).
+It is the implementation contract for `labeling.schema_version: 2` in [configs/config.yaml](configs/config.yaml).
 
 ## Scope and timeframe assumptions
 
@@ -213,7 +213,7 @@ Tracked metrics:
 
 ## 10) Configuration keys (authoritative)
 
-Use [configs/config.yaml](/Users/oskarrodziewicz/Library/CloudStorage/OneDrive-UniversityofWarwick/Deep%20Learning/Candlestick-Pattern-Recognition/configs/config.yaml) as the source of truth for:
+Use [configs/config.yaml](configs/config.yaml) as the source of truth for:
 
 - `data_source.*` (Kaggle handle, file path, timestamp mapping)
 - `resampling.*` (1m -> 15m)

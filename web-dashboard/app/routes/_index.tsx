@@ -9,8 +9,12 @@ import {
   formatPercent,
   formatSignedCurrency,
   formatNumber,
+  hiddenPatterns,
   humanizePattern,
   pnlTone,
+  visiblePairRows,
+  visiblePatterns,
+  visibleSummaryRows,
 } from "../lib/dashboard";
 import type { DashboardOutletContext } from "../root";
 
@@ -33,9 +37,11 @@ export default function OverviewRoute() {
     return null;
   }
 
+  const presentationPatterns = visiblePatterns(snapshot);
+  const lowSupportHiddenPatterns = hiddenPatterns(snapshot);
   const championSet = championSeriesIds(snapshot);
   const championCurves: ChartSeries[] = snapshot.backtest.pair_curves
-    .filter((curve) => championSet.has(curve.series_id))
+    .filter((curve) => championSet.has(curve.series_id) && presentationPatterns.includes(String(curve.pattern)))
     .map((curve, index) => ({
       id: curve.series_id,
       label: `${humanizePattern(curve.pattern ?? "pattern")} · ${String(curve.model).toUpperCase()}`,
@@ -47,75 +53,80 @@ export default function OverviewRoute() {
       })),
     }));
 
-  const leaderboard = averageByModel(snapshot.classification.summary_rows);
-  const topPairs = [...snapshot.backtest.pair_rows]
+  const summaryRows = visibleSummaryRows(snapshot);
+  const pairRows = visiblePairRows(snapshot);
+  const leaderboard = averageByModel(summaryRows);
+  const topPairs = [...pairRows]
     .sort((left, right) => right.total_pnl - left.total_pnl || right.f1 - left.f1)
     .slice(0, 4);
+  const strongestPattern = snapshot.hero.best_test_f1_pair;
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Current Snapshot"
-        title="The latest completed run, organised for presentation: strongest patterns, clean profitability evidence, and the best-performing model families."
-        description="This overview keeps the story tight. It highlights the current leaders, surfaces the equity curves behind them, and preserves the technical evidence without reading like presenter notes."
+        title="The selected presentation snapshot focuses on alert-ready pattern coverage, strong validated detection, and analyst workflows that save chart review time."
+        description="The homepage now prioritises high-support patterns and clean classification evidence. Profitability remains available as a backtest audit, but it no longer drives the main story."
         aside={
           <div className="grid gap-3 sm:grid-cols-2">
             <StatCard
-              label="Positive champion patterns"
-              value={`${snapshot.hero.champion_positive_patterns}/${snapshot.hero.champion_total_patterns}`}
-              hint="Patterns whose champion backtest finished above zero PnL."
+              label="Presentation-ready patterns"
+              value={`${formatNumber(presentationPatterns.length)}/${formatNumber(snapshot.meta.patterns.length)}`}
+              hint="Patterns that cleared the validation and test support gates."
               tone="positive"
             />
             <StatCard
               label="Best mean F1 model"
               value={String(snapshot.hero.best_model_by_mean_f1.model ?? "—").toUpperCase()}
-              hint={`${formatPercent(snapshot.hero.best_model_by_mean_f1.f1)} average F1 across all patterns.`}
+              hint={`${formatPercent(snapshot.hero.best_model_by_mean_f1.f1)} average F1 across visible patterns.`}
               tone="neutral"
             />
           </div>
         }
       />
 
+      {lowSupportHiddenPatterns.length > 0 ? (
+        <SectionCard title="Presentation filters" kicker="Support Gate">
+          <p className="text-sm leading-6 text-slate-600">
+            {snapshot.presentation.presentation_reason} Hidden for low support:{" "}
+            {lowSupportHiddenPatterns.map((pattern) => humanizePattern(pattern)).join(", ")}.
+          </p>
+        </SectionCard>
+      ) : null}
+
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Patterns covered"
+          label="Visible patterns"
           value={formatNumber(snapshot.hero.patterns_covered)}
-          hint="Patterns with complete classification and business readouts."
+          hint="Patterns included in the presentation snapshot."
           tone="neutral"
         />
         <StatCard
           label="Model-pattern pairs"
           value={formatNumber(snapshot.hero.model_pair_count)}
-          hint="All evaluated combinations in the latest snapshot."
+          hint="Visible combinations in the selected presentation snapshot."
           tone="neutral"
         />
         <StatCard
-          label="Best test F1 pair"
-          value={`${String(snapshot.hero.best_test_f1_pair.model ?? "—").toUpperCase()} · ${humanizePattern(String(snapshot.hero.best_test_f1_pair.pattern ?? "pattern"))}`}
-          hint={`${formatPercent(snapshot.hero.best_test_f1_pair.f1)} F1 with ${formatPercent(snapshot.hero.best_test_f1_pair.pr_auc)} PR AUC.`}
+          label="Strongest validated pattern"
+          value={`${String(strongestPattern.model ?? "—").toUpperCase()} · ${humanizePattern(String(strongestPattern.pattern ?? "pattern"))}`}
+          hint={`${formatPercent(strongestPattern.f1)} F1 with ${formatPercent(strongestPattern.pr_auc)} PR AUC.`}
           tone="positive"
         />
         <StatCard
-          label="Best backtest pair"
-          value={`${String(snapshot.hero.best_backtest_pair.model ?? "—").toUpperCase()} · ${humanizePattern(String(snapshot.hero.best_backtest_pair.pattern ?? "pattern"))}`}
-          hint={`${formatSignedCurrency(snapshot.hero.best_backtest_pair.total_pnl)} total PnL with ${formatPercent(snapshot.hero.best_backtest_pair.win_rate)} win rate.`}
-          tone={pnlTone(Number(snapshot.hero.best_backtest_pair.total_pnl ?? 0))}
+          label="Quality score"
+          value={formatNumber(snapshot.presentation.quality_score)}
+          hint="Composite rank used to choose the presentation snapshot."
+          tone="neutral"
         />
       </section>
-
-      <SectionCard
-        title="Champion profitability curve"
-        kicker="Profitability Snapshot"
-        actions={<Pill tone="positive">Champion overlay</Pill>}
-      >
-        <ProfitCurveChart series={championCurves} />
-      </SectionCard>
 
       <section className="grid gap-6 xl:grid-cols-[1.25fr_0.95fr]">
         <SectionCard title="Pattern champions" kicker="Pattern Leaders">
           <div className="grid gap-4 lg:grid-cols-2">
             {snapshot.classification.champions
               .slice()
+              .filter((champion) => champion.presentation_eligible)
               .sort((left, right) => right.total_pnl - left.total_pnl)
               .map((champion) => (
                 <article key={champion.pattern} className="feature-card flex h-full flex-col">
@@ -127,7 +138,7 @@ export default function OverviewRoute() {
                       </h3>
                     </div>
                     <Pill tone={pnlTone(champion.total_pnl)}>
-                      {champion.total_pnl > 0 ? "Promising" : "Needs work"}
+                      {champion.test_f1 >= 0.5 ? "Alert ready" : "Needs tuning"}
                     </Pill>
                   </div>
 
@@ -137,16 +148,16 @@ export default function OverviewRoute() {
                       <p className="text-lg font-semibold text-slate-950">{formatPercent(champion.test_f1)}</p>
                     </div>
                     <div>
-                      <p className="metric-label">Total PnL</p>
-                      <p className="text-lg font-semibold text-slate-950">{formatSignedCurrency(champion.total_pnl)}</p>
+                      <p className="metric-label">Validation support</p>
+                      <p className="text-lg font-semibold text-slate-950">{formatNumber(champion.val_positive_support)}</p>
                     </div>
                     <div>
-                      <p className="metric-label">Win rate</p>
-                      <p className="text-lg font-semibold text-slate-950">{formatPercent(champion.win_rate)}</p>
+                      <p className="metric-label">Test support</p>
+                      <p className="text-lg font-semibold text-slate-950">{formatNumber(champion.test_positive_support)}</p>
                     </div>
                     <div>
-                      <p className="metric-label">Profit factor</p>
-                      <p className="text-lg font-semibold text-slate-950">{formatNumber(champion.profit_factor)}</p>
+                      <p className="metric-label">Precision</p>
+                      <p className="text-lg font-semibold text-slate-950">{formatPercent(champion.test_precision)}</p>
                     </div>
                   </div>
 
@@ -185,7 +196,15 @@ export default function OverviewRoute() {
         </SectionCard>
       </section>
 
-      <SectionCard title="Top profitability candidates" kicker="Highest Total PnL">
+      <SectionCard title="Champion backtest audit" kicker="Secondary Review" actions={<Pill tone="neutral">Backtest audit</Pill>}>
+        <p className="mb-5 text-sm leading-6 text-slate-600">
+          Backtests stay visible as a secondary audit layer. They help us sanity-check the signal stream, but they are
+          not the core proposal story for this analyst-facing product.
+        </p>
+        <ProfitCurveChart series={championCurves} />
+      </SectionCard>
+
+      <SectionCard title="Visible pair audit" kicker="Highest Total PnL">
         <div className="overflow-hidden rounded-[1.5rem] border border-white/60">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-950 text-white">

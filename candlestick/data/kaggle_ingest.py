@@ -6,6 +6,11 @@ from typing import Any
 import pandas as pd
 
 from candlestick.config import ensure_dir
+from candlestick.domain import (
+    COLUMN_SYMBOL,
+    COLUMN_TS_EVENT,
+    DEFAULT_INSTRUMENT,
+)
 
 DEFAULT_COLUMN_ALIASES: dict[str, list[str]] = {
     "ts_event": ["ts_event", "timestamp", "date", "datetime", "time"],
@@ -90,9 +95,8 @@ def normalize_intraday_schema(df: pd.DataFrame, cfg: dict[str, Any]) -> pd.DataF
 
     normalized = df.rename(columns=rename_map).copy()
 
-    if "symbol" not in normalized.columns:
-        instrument = cfg["data_source"].get("instrument", "SPY")
-        normalized["symbol"] = instrument
+    if COLUMN_SYMBOL not in normalized.columns:
+        normalized[COLUMN_SYMBOL] = cfg["data_source"].get("instrument", DEFAULT_INSTRUMENT)
 
     keep_cols = ["symbol", "ts_event", "open", "high", "low", "close", "volume"]
     extra_cols = [c for c in ["barCount", "barcount", "average", "avg"] if c in normalized.columns]
@@ -101,12 +105,11 @@ def normalize_intraday_schema(df: pd.DataFrame, cfg: dict[str, Any]) -> pd.DataF
     if "Unnamed: 0" in normalized.columns:
         normalized = normalized.drop(columns=["Unnamed: 0"])
 
-    # Parse timestamp while preserving timezone awareness where available.
-    normalized["ts_event"] = pd.to_datetime(normalized["ts_event"], errors="coerce")
-    if normalized["ts_event"].isna().all():
+    normalized[COLUMN_TS_EVENT] = pd.to_datetime(normalized[COLUMN_TS_EVENT], errors="coerce")
+    if normalized[COLUMN_TS_EVENT].isna().all():
         raise IngestError("All timestamps failed to parse. Check data_source.timestamp.column mapping.")
 
-    normalized = normalized.sort_values(["symbol", "ts_event"]).reset_index(drop=True)
+    normalized = normalized.sort_values([COLUMN_SYMBOL, COLUMN_TS_EVENT]).reset_index(drop=True)
     return normalized
 
 
@@ -140,10 +143,7 @@ def load_kaggle_dataframe(cfg: dict[str, Any]) -> pd.DataFrame:
     last_error: Exception | None = None
 
     if file_path:
-        # Fast path: direct table load when file path is configured correctly.
         try:
-            # kagglehub API naming differs across versions: some expect `path`,
-            # while earlier snippets/documentation may show `file_path`.
             try:
                 df = load_fn(
                     KaggleDatasetAdapter.PANDAS,
@@ -162,7 +162,6 @@ def load_kaggle_dataframe(cfg: dict[str, Any]) -> pd.DataFrame:
             last_error = exc
 
     if df is None:
-        # Robust fallback: download dataset root and resolve CSV path locally.
         try:
             download_root = Path(kagglehub.dataset_download(dataset_handle))
         except Exception as exc:  # noqa: BLE001
@@ -185,7 +184,6 @@ def load_kaggle_dataframe(cfg: dict[str, Any]) -> pd.DataFrame:
         try:
             csv_path = _resolve_csv_from_download_root(download_root, file_path)
         except IngestError:
-            # Recover from stale/corrupted cache by forcing a fresh download.
             try:
                 download_root = Path(kagglehub.dataset_download(dataset_handle, force_download=True))
                 csv_path = _resolve_csv_from_download_root(download_root, file_path)

@@ -2,39 +2,25 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 import pandas as pd
 from pandas.errors import EmptyDataError
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+try:
+    from scripts._bootstrap import ensure_repo_root
+except ImportError:
+    from _bootstrap import ensure_repo_root
+
+ensure_repo_root()
 
 from candlestick.config import ensure_dir, load_config
+from candlestick.project_utils import load_processed_prices, run_name_from_cfg
 from candlestick.trading.backtest import run_backtest_for_predictions, save_backtest_outputs
 
 
-def _load_prices(cfg: dict) -> pd.DataFrame:
-    prices_path = Path(cfg["paths"].get("processed_15m_path", "data/processed/spy_15m.csv"))
-    if not prices_path.exists():
-        raise FileNotFoundError(f"Processed prices not found: {prices_path}")
-
-    prices = pd.read_csv(prices_path)
-    working_timezone = cfg.get("data_source", {}).get("timestamp", {}).get(
-        "convert_to_timezone", "America/New_York"
-    )
-    prices["ts_event"] = pd.to_datetime(prices["ts_event"], errors="coerce", utc=True).dt.tz_convert(
-        working_timezone
-    )
-    prices = prices.dropna(subset=["ts_event"]).copy()
-    prices = prices[prices["symbol"].astype(str).str.upper() == "SPY"].copy()
-    return prices.sort_values("ts_event").reset_index(drop=True)
-
-
 def run_backtest(cfg: dict) -> dict[str, object]:
-    run_name = cfg["project"].get("run_name", "pattern_suite")
+    run_name = run_name_from_cfg(cfg)
     metrics_root = Path(cfg["paths"].get("metrics_dir", "outputs/metrics")) / run_name
     champions_path = metrics_root / "champions.csv"
 
@@ -43,7 +29,7 @@ def run_backtest(cfg: dict) -> dict[str, object]:
             f"Champion file not found: {champions_path}. Run scripts/run_experiment_suite.py first."
         )
 
-    prices = _load_prices(cfg)
+    prices = load_processed_prices(cfg)
     bt_root = ensure_dir(Path(cfg["paths"].get("backtest_dir", "outputs/backtest")) / run_name)
     try:
         champions = pd.read_csv(champions_path)

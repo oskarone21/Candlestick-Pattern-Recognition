@@ -2,17 +2,21 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+try:
+    from scripts._bootstrap import ensure_repo_root
+except ImportError:
+    from _bootstrap import ensure_repo_root
+
+ensure_repo_root()
 
 from candlestick.config import ensure_dir, load_config
+from candlestick.domain import MODEL_LOGREG
+from candlestick.project_utils import allowed_patterns_from_cfg, run_name_from_cfg
 from scripts.run_backtest import run_backtest
 from scripts.run_experiment_suite import run_experiment_suite
 
@@ -52,9 +56,9 @@ def _screen_profile(
     smoke: bool,
 ) -> dict[str, Any]:
     cfg = _profile_config(base_config, extra_overrides, set_overrides, profile_name)
-    base_run_name = cfg["project"].get("run_name", "pattern_suite")
+    base_run_name = run_name_from_cfg(cfg)
     cfg["project"]["run_name"] = f"{base_run_name}_{profile_name}_screen"
-    cfg["model_selection"]["candidate_models"] = ["logreg"]
+    cfg["model_selection"]["candidate_models"] = [MODEL_LOGREG]
     cfg["optuna"]["enabled"] = False
 
     experiment = run_experiment_suite(cfg=cfg, smoke=smoke)
@@ -65,7 +69,7 @@ def _screen_profile(
     min_support = int(cfg.get("evaluation", {}).get("minimum_test_positive_support", 5))
     usable_mask = summary_df["support_positive"] >= min_support if not summary_df.empty else pd.Series(dtype=bool)
     usable_patterns = int(summary_df.loc[usable_mask, "pattern"].nunique()) if not summary_df.empty else 0
-    total_patterns = len(cfg["labeling"].get("allowed_patterns", []))
+    total_patterns = len(allowed_patterns_from_cfg(cfg))
 
     row = {
         "profile": profile_name,
@@ -108,7 +112,7 @@ def _run_overnight(
     smoke: bool,
 ) -> dict[str, Any]:
     cfg = _profile_config(base_config, extra_overrides, set_overrides, profile_name)
-    base_run_name = cfg["project"].get("run_name", "pattern_suite")
+    base_run_name = run_name_from_cfg(cfg)
     cfg["project"]["run_name"] = f"{base_run_name}_{profile_name}_overnight"
     return {
         "experiment": run_experiment_suite(cfg=cfg, smoke=smoke),
@@ -128,7 +132,7 @@ def main() -> None:
     args = parser.parse_args()
 
     seed_cfg = load_config(args.config, args.config_override, args.set_overrides)
-    base_run_name = seed_cfg["project"].get("run_name", "pattern_suite")
+    base_run_name = run_name_from_cfg(seed_cfg)
     report_root = ensure_dir(Path(seed_cfg["paths"].get("metrics_dir", "outputs/metrics")) / f"{base_run_name}_rule_screen")
 
     ranked_df = pd.DataFrame()

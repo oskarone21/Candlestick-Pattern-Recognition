@@ -1,147 +1,302 @@
-# Automated Candlestick Pattern Recognition (SPY 15-Min Prototype)
+# Candlestick Pattern Recognition
 
-This repository now implements an end-to-end, config-driven prototype for detecting four classic chart patterns on **15-minute SPY bars** derived from Kaggle 1-minute intraday data:
+This project detects four classic chart patterns on 15-minute SPY data and shows the results in a web dashboard.
+
+Patterns covered:
 
 - Head and Shoulders
 - Inverse Head and Shoulders
 - Double Top
 - Double Bottom
 
-The pipeline includes:
+## What You Need
 
-- Kaggle ingestion with schema normalization
-- timezone audit and conversion (`America/Denver -> America/New_York`)
-- OHLCV cleaning + 1m -> 15m resampling
-- breakout-anchored labeling with hard negatives
-- one-vs-rest model comparison across 5 model families
-- optional Optuna hyperparameter tuning
-- post-breakout trade simulation (PnL, Sharpe, win rate, profit factor, drawdown)
-- TP/FP/FN chart gallery export for visual verification
+- Python with `pip`
+- Node.js with `npm` for the dashboard
+- Kaggle API access for the dataset download
 
-## Why this project matters
+## First-Time Setup
 
-This prototype is designed as a practical decision-support system for analysts. It shows how objective pattern recognition can reduce manual chart-scanning effort and scale toward broader market coverage while maintaining auditable, reproducible rules.
-
-See business framing in [docs/BUSINESS_IMPACT.md](/Users/oskarrodziewicz/Library/CloudStorage/OneDrive-UniversityofWarwick/Deep%20Learning/Candlestick-Pattern-Recognition/docs/BUSINESS_IMPACT.md).
-
-## Repository structure
-
-- [configs/config.yaml](/Users/oskarrodziewicz/Library/CloudStorage/OneDrive-UniversityofWarwick/Deep%20Learning/Candlestick-Pattern-Recognition/configs/config.yaml): single source of truth for data, labeling, models, tuning, and backtesting
-- `candlestick/`: core library modules
-- `scripts/`: runnable pipeline entrypoints
-- `tests/`: unit + integration smoke tests
-- [PATTERNS_EXPLAINED.md](/Users/oskarrodziewicz/Library/CloudStorage/OneDrive-UniversityofWarwick/Deep%20Learning/Candlestick-Pattern-Recognition/PATTERNS_EXPLAINED.md): mathematical definitions and implementation contract
-
-## Setup
-
-Install dependencies:
+Install the Python dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## End-to-end runbook
+Install the dashboard dependencies:
 
-### 1) Download raw SPY intraday data from Kaggle
+```bash
+cd web-dashboard
+npm install
+cd ..
+```
+
+## Kaggle Setup
+
+The dataset is downloaded through `kagglehub`, so you need a Kaggle API token.
+
+1. Create or download your Kaggle token from your Kaggle account settings.
+2. Save it as `~/.kaggle/kaggle.json`.
+3. Make sure the dataset settings in [configs/config.yaml](configs/config.yaml) are correct.
+
+Default dataset settings:
+
+- `data_source.kaggle_dataset`: `gratefuldata/intraday-stock-data-1-min-sp-500-200821`
+- `data_source.kaggle_file_path`: `1_min_SPY_2008-2021.csv`
+
+If Kaggle changes the CSV name, update `data_source.kaggle_file_path` before running the download step.
+
+## Fastest End-to-End Run
+
+Replace `my_run` with any run name you want to keep.
+
+```bash
+python scripts/download_kaggle_intraday.py --config configs/config.yaml
+python scripts/prepare_15m_dataset.py --config configs/config.yaml
+python scripts/run_experiment_suite.py --config configs/config.yaml --config-override configs/overrides/production_repro.yaml --set project.run_name=my_run
+python scripts/run_backtest.py --config configs/config.yaml --config-override configs/overrides/production_repro.yaml --set project.run_name=my_run
+python scripts/render_pattern_gallery.py --config configs/config.yaml --config-override configs/overrides/production_repro.yaml --set project.run_name=my_run
+```
+
+Then start the dashboard:
+
+```bash
+cd web-dashboard
+npm run dev
+```
+
+Open `http://localhost:5173`.
+
+## Reproducible Production Run
+
+Use [configs/overrides/production_repro.yaml](configs/overrides/production_repro.yaml) when you want the verified CPU-first production profile rather than the broader research defaults in [configs/config.yaml](configs/config.yaml).
+
+This profile bakes in the live setup that produced the strongest verified local run:
+
+- `intraday_balanced` labeling thresholds
+- CPU execution for reproducibility
+- candidate models ordered as `tcn`, then `lstm`
+- `f1` as the primary selection metric
+- `window_minmax` sequence normalization
+- training-only positive augmentation
+- reduced Optuna budget tuned for the verified local run
+
+Canonical training command:
+
+```bash
+python scripts/run_experiment_suite.py \
+  --config configs/config.yaml \
+  --config-override configs/overrides/production_repro.yaml \
+  --set project.run_name=my_run
+```
+
+Main reproducibility artifact:
+
+- `outputs/metrics/my_run/repro_manifest.json`
+
+That manifest records:
+
+- git commit SHA and branch
+- base config plus override stack
+- CLI `--set` overrides
+- selected device and torch runtime summary
+- exact installed dependency versions from `requirements.txt`
+- raw and processed dataset paths, row counts, and SHA-256 hashes
+
+With the same dataset, pinned dependencies, and CPU execution, the expected macro metrics for the verified reference run are approximately:
+
+- F1: `0.8914`
+- Precision: `0.9886`
+- Recall: `0.8373`
+
+A rerun within about `±0.02` on the macro metrics is a good reproducibility check.
+
+## Step-by-Step
+
+### 1. Download the raw dataset
 
 ```bash
 python scripts/download_kaggle_intraday.py --config configs/config.yaml
 ```
 
-Notes:
-- Uses `kagglehub.load_dataset(...)` and the dataset handle configured in `data_source.kaggle_dataset`.
-- Set `data_source.kaggle_file_path` in config to match the exact CSV inside Kaggle.
+Main output:
 
-### 2) Clean, audit timezone, and resample to 15-minute bars
+- `data/raw/spy_1m.csv`
+
+Also writes a raw data quality report to:
+
+- `outputs/data_quality/raw_1m_quality_report.json`
+
+### 2. Prepare the 15-minute dataset
+
+This step cleans the raw data, audits timezone handling, removes bad rows, keeps regular NYSE session data, and resamples from 1 minute to 15 minutes.
 
 ```bash
 python scripts/prepare_15m_dataset.py --config configs/config.yaml
 ```
 
-Outputs:
-- `paths.cleaned_1m_path` (default `data/processed/spy_1m_cleaned.csv`)
-- `paths.processed_15m_path` (default `data/processed/spy_15m.csv`)
-- raw data quality report (`paths.raw_1m_quality_report`)
-- timezone audit report (`paths.timezone_report`)
-- session coverage report (`paths.session_coverage_report`)
-- data quality report (`paths.data_quality_report`)
+Main outputs:
 
-### 3) Train and compare models (one-vs-rest per pattern)
+- `data/processed/spy_1m_cleaned.csv`
+- `data/processed/spy_15m.csv`
+- `outputs/data_quality/timezone_report.json`
+- `outputs/data_quality/session_coverage_report.csv`
+- `outputs/data_quality/prep_quality_report.json`
+
+If you want this step to re-download the raw Kaggle data first, use:
 
 ```bash
-python scripts/run_experiment_suite.py --config configs/config.yaml
+python scripts/prepare_15m_dataset.py --config configs/config.yaml --refresh-raw
 ```
 
-Default candidate models:
-- `logreg`
-- `hgb`
-- `lstm`
+### 3. Run the model training and model comparison
+
+This trains the configured candidate models and selects a champion model for each pattern.
+
+```bash
+python scripts/run_experiment_suite.py \
+  --config configs/config.yaml \
+  --config-override configs/overrides/production_repro.yaml \
+  --set project.run_name=my_run
+```
+
+Main output folder:
+
+- `outputs/metrics/my_run/`
+
+Important files in that folder:
+
+- `model_comparison_summary.csv`
+- `champions.csv`
+- `macro_summary.json`
+- `repro_manifest.json`
+
+Candidate models in [configs/overrides/production_repro.yaml](configs/overrides/production_repro.yaml):
+
 - `tcn`
-- `transformer`
+- `lstm`
 
-Optuna settings are controlled under `optuna:` in config.
+### 4. Run the backtest
 
-Outputs (per run name):
-- model metrics JSONs
-- per-model test predictions
-- champion model table (`champions.csv`, selected on validation only)
-- macro summary (`macro_summary.json`)
-
-### 4) Backtest champion signals
+This backtests the champion predictions produced in the previous step.
 
 ```bash
-python scripts/run_backtest.py --config configs/config.yaml
+python scripts/run_backtest.py \
+  --config configs/config.yaml \
+  --config-override configs/overrides/production_repro.yaml \
+  --set project.run_name=my_run
 ```
 
-Backtest policy (configurable):
-- entry: next bar open after breakout signal
-- TP: measured move (primary)
-- SL: pattern invalidation plus ATR buffer
-- exit: TP / SL / time stop
-- metrics: total PnL, Sharpe, win rate, profit factor, max drawdown, expectancy
+Main output folder:
 
-### 5) Render visual verification gallery
+- `outputs/backtest/my_run/`
+
+Important files:
+
+- `backtest_summary.csv`
+- `backtest_summary.json`
+
+### 5. Generate gallery images for the dashboard
+
+This creates TP/FP/FN chart images for the champion models.
 
 ```bash
-python scripts/render_pattern_gallery.py --config configs/config.yaml
+python scripts/render_pattern_gallery.py \
+  --config configs/config.yaml \
+  --config-override configs/overrides/production_repro.yaml \
+  --set project.run_name=my_run
 ```
 
-Generates TP/FP/FN images for manual sanity checking.
+Main output folder:
 
-## Reliability and leakage controls
+- `outputs/gallery/my_run/`
 
-Implemented controls include:
-- strict time-based split
-- enforced minimum embargo around split boundaries (`lookback + confirmation horizon`)
-- fail-fast behavior when embargo would empty val/test folds (no silent zero-embargo fallback)
-- champion selection on validation only (no test-set model picking)
-- hard-negative downsampling applied to train only (validation/test stay untouched)
-- causal smoothing/extrema detection for pattern events (no future-bar dependence)
-- train-only fit behavior for model preprocessing
-- breakout-time label anchoring
-- confidence intervals (bootstrap) for precision, recall, and F1
-- minimum test positive-support gate before reliability claims
+Important file:
 
-## Smoke test (CI/local quick check)
+- `gallery_summary.json`
+
+### 6. Run the dashboard
+
+Start the dashboard in development mode:
+
+```bash
+cd web-dashboard
+npm run dev
+```
+
+Open:
+
+- `http://localhost:5173`
+
+## How To Refresh The Live Dashboard Results
+
+The dashboard updates from completed runs automatically. You do not normally need to copy files by hand.
+
+For a run to be visible to the dashboard, all of these must exist for the same run name:
+
+- `outputs/metrics/<run_name>/model_comparison_summary.csv`
+- `outputs/metrics/<run_name>/champions.csv`
+- `outputs/backtest/<run_name>/backtest_summary.csv`
+- `outputs/gallery/<run_name>/gallery_summary.json`
+
+In practice, that means you must run these three commands with the same `project.run_name`:
+
+```bash
+python scripts/run_experiment_suite.py --config configs/config.yaml --config-override configs/overrides/production_repro.yaml --set project.run_name=my_run
+python scripts/run_backtest.py --config configs/config.yaml --config-override configs/overrides/production_repro.yaml --set project.run_name=my_run
+python scripts/render_pattern_gallery.py --config configs/config.yaml --config-override configs/overrides/production_repro.yaml --set project.run_name=my_run
+```
+
+After that, refresh the browser page. The dashboard server rebuilds its snapshot automatically when the source files are newer.
+
+Important note: the dashboard does not always show the newest run. It prefers the strongest presentation-ready finished run. If your latest run does not appear, compare it with older runs in `outputs/metrics/`, `outputs/backtest/`, and `outputs/gallery/`.
+
+## Manual Dashboard Snapshot Rebuild
+
+Only use this if you want to force a dashboard data refresh manually.
+
+```bash
+python scripts/build_results_dashboard.py \
+  --config configs/config.yaml \
+  --run-name my_run \
+  --output-root web-dashboard/.generated \
+  --data-only
+```
+
+This writes the dashboard snapshot to:
+
+- `web-dashboard/.generated/my_run/data.json`
+
+This only rebuilds the cached dashboard data for that run. It does not force the live dashboard to display that run if another finished run ranks higher.
+
+## Most Important Settings
+
+The main file to edit is [configs/config.yaml](configs/config.yaml).
+
+Useful settings:
+
+- `project.run_name`: name of the output run
+- `model_selection.candidate_models`: which models to train
+- `labeling.allowed_patterns`: which patterns to detect
+- `optuna.enabled`: whether Optuna tuning is enabled
+- `paths.*`: where data and outputs are written
+
+## Quick Checks
+
+Run the test suite:
 
 ```bash
 pytest -q
 ```
 
-Test suite includes ingestion mapping, timezone conversion, resampling, pattern fixtures, leakage-safe splitting, metric reproducibility, backtest arithmetic, and integration smoke run.
-
-## Config-first experimentation
-
-Use `--config-override` and/or `--set` for controlled experiments:
+Run a fast synthetic smoke test without the Kaggle dataset:
 
 ```bash
-python scripts/run_experiment_suite.py \
-  --config configs/config.yaml \
-  --set project.run_name=overnight_optuna \
-  --set optuna.enabled=true \
-  --set optuna.n_trials=200
+python scripts/run_experiment_suite.py --config configs/config.yaml --smoke
 ```
 
-## Academic transparency
+## Useful Files
 
-Pattern math and assumptions are documented in [PATTERNS_EXPLAINED.md](/Users/oskarrodziewicz/Library/CloudStorage/OneDrive-UniversityofWarwick/Deep%20Learning/Candlestick-Pattern-Recognition/PATTERNS_EXPLAINED.md), including breakout confirmation logic and 15-minute timeframe assumptions.
+- [configs/config.yaml](configs/config.yaml): main project settings
+- [PATTERNS_EXPLAINED.md](PATTERNS_EXPLAINED.md): pattern definitions and assumptions
+- [docs/BUSINESS_IMPACT.md](docs/BUSINESS_IMPACT.md): business context

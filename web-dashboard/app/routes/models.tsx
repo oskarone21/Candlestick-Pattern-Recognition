@@ -7,9 +7,12 @@ import {
   averageByModel,
   formatPercent,
   formatNumber,
+  hiddenPatterns,
   humanizePattern,
   metricLabels,
   type MetricKey,
+  visiblePatterns,
+  visibleSummaryRows,
 } from "../lib/dashboard";
 import type { DashboardOutletContext } from "../root";
 
@@ -37,7 +40,9 @@ export default function ModelsRoute() {
     return null;
   }
 
-  const summaryRows = snapshot.classification.summary_rows;
+  const presentationPatterns = visiblePatterns(snapshot);
+  const lowSupportHiddenPatterns = hiddenPatterns(snapshot);
+  const summaryRows = visibleSummaryRows(snapshot);
   const detailLookup = new Map(
     snapshot.classification.detail_rows.map((row) => [`${row.pattern}::${row.model}`, row]),
   );
@@ -47,8 +52,8 @@ export default function ModelsRoute() {
     <div className="space-y-8">
       <PageHeader
         eyebrow="Classification Layer"
-        title="Model selection stays anchored in validation discipline, then gets audited through test-time precision, recall, and PR AUC."
-        description="This page keeps the technical evidence visible: which model families generalise, where recall is being bought at the expense of precision, and how stable the strongest scores look once confidence intervals are included."
+        title="Model selection stays anchored in validation discipline, then gets audited through high-support test-time precision, recall, and PR AUC."
+        description="This page only promotes patterns that cleared the presentation support gates. Low-support rows stay in the raw artifacts, but they do not take space in the proposal-facing matrix."
         aside={
           <div className="grid gap-3 sm:grid-cols-2">
             {modelAverages.slice(0, 2).map((row) => (
@@ -63,6 +68,15 @@ export default function ModelsRoute() {
           </div>
         }
       />
+
+      {lowSupportHiddenPatterns.length > 0 ? (
+        <SectionCard title="Support gate" kicker="Hidden Patterns">
+          <p className="text-sm leading-6 text-slate-600">
+            Hidden from the proposal matrix because validation or test support is too low:{" "}
+            {lowSupportHiddenPatterns.map((pattern) => humanizePattern(pattern)).join(", ")}.
+          </p>
+        </SectionCard>
+      ) : null}
 
       <SectionCard
         title="Pattern × model matrix"
@@ -81,7 +95,7 @@ export default function ModelsRoute() {
         }
       >
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {snapshot.meta.patterns.map((pattern) => (
+          {presentationPatterns.map((pattern) => (
             <article key={pattern} className="subtle-panel space-y-3 p-4">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-lg font-semibold text-slate-950">{humanizePattern(pattern)}</h3>
@@ -120,7 +134,7 @@ export default function ModelsRoute() {
                   <div className="leaderboard-rank">{index + 1}</div>
                   <div>
                     <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">{row.model}</p>
-                    <p className="text-sm text-slate-500">{row.count} model-pattern rows</p>
+                    <p className="text-sm text-slate-500">{row.count} visible model-pattern rows</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-right text-sm">
