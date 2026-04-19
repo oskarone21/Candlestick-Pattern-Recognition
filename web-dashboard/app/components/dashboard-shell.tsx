@@ -50,8 +50,8 @@ export function DashboardShell({
           <div className="space-y-1">
             <p className="eyebrow">Candlestick Pattern Intelligence</p>
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-lg font-semibold tracking-[0.02em] text-slate-950">Strategy Presentation Dashboard</h1>
-              {snapshot ? <Pill tone="positive">Presentation snapshot · {snapshot.meta.run_name}</Pill> : null}
+              <h1 className="text-lg font-semibold tracking-[0.02em] text-slate-950">Reproducible Results Dashboard</h1>
+              {snapshot ? <Pill tone="positive">Supported run snapshot · {snapshot.meta.run_name}</Pill> : null}
             </div>
           </div>
 
@@ -79,7 +79,7 @@ export function DashboardShell({
               {snapshot ? `${formatNumber(snapshot.meta.models.length)} evaluated models` : "Waiting for a finished run"}
             </Pill>
             <Pill tone="neutral">
-              {snapshot ? `${formatNumber(presentationPatterns.length)} presentation patterns` : "No classification snapshot yet"}
+              {snapshot ? `${formatNumber(presentationPatterns.length)} supported patterns` : "No classification snapshot yet"}
             </Pill>
             {snapshot && lowSupportHiddenPatterns.length > 0 ? (
               <Pill tone="caution">{`${formatNumber(lowSupportHiddenPatterns.length)} hidden for low support`}</Pill>

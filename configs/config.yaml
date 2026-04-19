@@ -236,6 +236,13 @@ evaluation:
     - f2
     - pr_auc
 
+dashboard:
+  presentation:
+    minimum_validation_positive_support: 5
+    minimum_test_positive_support: 5
+    minimum_visible_patterns: 3
+    minimum_champion_f1: 0.25
+
 optuna:
   enabled: true
   tuned_models:

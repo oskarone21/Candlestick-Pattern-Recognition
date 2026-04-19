@@ -6,40 +6,63 @@ from scripts.build_results_dashboard import (
     _build_presentation_payload,
     _payload_hero,
     _pattern_support_from_split,
+    _presentation_config,
 )
 
 
-def test_pattern_support_uses_presentation_thresholds():
+def test_pattern_support_uses_configured_thresholds():
     split_df = pd.DataFrame(
         {
-            "split": ["train"] * 30 + ["val"] * 20 + ["test"] * 20,
-            "label": [1] * 25 + [0] * 5 + [1] * 20 + [1] * 20,
+            "split": ["train"] * 30 + ["val"] * 8 + ["test"] * 9,
+            "label": [1] * 25 + [0] * 5 + [1] * 6 + [0] * 2 + [1] * 7 + [0] * 2,
+        }
+    )
+    presentation_cfg = _presentation_config(
+        {
+            "dashboard": {
+                "presentation": {
+                    "minimum_validation_positive_support": 5,
+                    "minimum_test_positive_support": 5,
+                }
+            }
         }
     )
 
-    support = _pattern_support_from_split(split_df)
+    support = _pattern_support_from_split(split_df, presentation_cfg)
 
     assert support["train_positive_support"] == 25
-    assert support["val_positive_support"] == 20
-    assert support["test_positive_support"] == 20
+    assert support["val_positive_support"] == 6
+    assert support["test_positive_support"] == 7
     assert support["presentation_eligible"] is True
 
 
 def test_presentation_payload_hides_low_support_patterns():
+    presentation_cfg = _presentation_config(
+        {
+            "dashboard": {
+                "presentation": {
+                    "minimum_validation_positive_support": 5,
+                    "minimum_test_positive_support": 5,
+                    "minimum_visible_patterns": 3,
+                    "minimum_champion_f1": 0.25,
+                }
+            }
+        }
+    )
     summary_df = pd.DataFrame(
         [
             {
                 "pattern": "head_shoulders",
                 "train_positive_support": 120,
-                "val_positive_support": 30,
-                "test_positive_support": 28,
+                "val_positive_support": 7,
+                "test_positive_support": 6,
                 "presentation_eligible": True,
             },
             {
                 "pattern": "double_bottom",
                 "train_positive_support": 40,
                 "val_positive_support": 3,
-                "test_positive_support": 10,
+                "test_positive_support": 4,
                 "presentation_eligible": False,
             },
         ]
@@ -59,11 +82,79 @@ def test_presentation_payload_hides_low_support_patterns():
         },
     ]
 
-    presentation = _build_presentation_payload(summary_df, champion_rows)
+    presentation = _build_presentation_payload(summary_df, champion_rows, presentation_cfg)
 
     assert presentation["visible_patterns"] == ["head_shoulders"]
     assert presentation["hidden_patterns"] == ["double_bottom"]
     assert presentation["presentation_eligible"] is False
+
+
+def test_presentation_payload_accepts_supported_subset_for_snapshot():
+    presentation_cfg = _presentation_config(
+        {
+            "dashboard": {
+                "presentation": {
+                    "minimum_validation_positive_support": 5,
+                    "minimum_test_positive_support": 5,
+                    "minimum_visible_patterns": 3,
+                    "minimum_champion_f1": 0.25,
+                }
+            }
+        }
+    )
+    summary_df = pd.DataFrame(
+        [
+            {
+                "pattern": "double_bottom",
+                "train_positive_support": 77,
+                "val_positive_support": 6,
+                "test_positive_support": 19,
+                "presentation_eligible": True,
+            },
+            {
+                "pattern": "double_top",
+                "train_positive_support": 80,
+                "val_positive_support": 8,
+                "test_positive_support": 22,
+                "presentation_eligible": True,
+            },
+            {
+                "pattern": "inverse_head_shoulders",
+                "train_positive_support": 41,
+                "val_positive_support": 20,
+                "test_positive_support": 19,
+                "presentation_eligible": True,
+            },
+            {
+                "pattern": "head_shoulders",
+                "train_positive_support": 8,
+                "val_positive_support": 2,
+                "test_positive_support": 2,
+                "presentation_eligible": False,
+            },
+        ]
+    )
+    champion_rows = [
+        {"pattern": "double_bottom", "test_f1": 1.0, "test_pr_auc": 1.0, "presentation_eligible": True},
+        {"pattern": "double_top", "test_f1": 0.95, "test_pr_auc": 0.97, "presentation_eligible": True},
+        {
+            "pattern": "inverse_head_shoulders",
+            "test_f1": 0.94,
+            "test_pr_auc": 0.98,
+            "presentation_eligible": True,
+        },
+        {"pattern": "head_shoulders", "test_f1": 0.67, "test_pr_auc": 0.70, "presentation_eligible": False},
+    ]
+
+    presentation = _build_presentation_payload(summary_df, champion_rows, presentation_cfg)
+
+    assert presentation["presentation_eligible"] is True
+    assert presentation["visible_patterns"] == [
+        "double_bottom",
+        "double_top",
+        "inverse_head_shoulders",
+    ]
+    assert presentation["hidden_patterns"] == ["head_shoulders"]
 
 
 def test_payload_hero_ignores_all_negative_backtests():

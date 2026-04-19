@@ -87,8 +87,8 @@ export default function PatternRoute() {
   if (!visiblePatterns(snapshot).includes(pattern)) {
     return (
       <EmptyState
-        title="Pattern hidden from the presentation snapshot"
-        description="This route only surfaces patterns that cleared the presentation support gates. The raw artifacts may still contain the hidden pattern, but it is not shown in the proposal-facing dashboard."
+        title="Pattern hidden from the supported snapshot"
+        description="This pattern exists in the finished run artifacts, but it stayed below the configured support floor for the main dashboard."
       />
     );
   }

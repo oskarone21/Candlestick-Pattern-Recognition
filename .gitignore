@@ -22,6 +22,7 @@ data/nq_1min.csv
 data/QQQ_1d.csv
 data/raw/*.csv
 data/processed/*.csv
+!data/processed/spy_15m.csv
 
 # Generated artifacts
 outputs/

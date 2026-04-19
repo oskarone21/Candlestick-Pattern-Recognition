@@ -40,7 +40,7 @@ export function meta({}: Route.MetaArgs) {
     { title: "Profitability · Candlestick Results" },
     {
       name: "description",
-      content: "Cumulative profitability, trade timeline overlays, and filters across models and patterns.",
+      content: "Cumulative profitability, trade timeline overlays, and filters across the supported subset of models and patterns.",
     },
   ];
 }
@@ -183,8 +183,8 @@ export default function ProfitabilityRoute() {
     <div className="space-y-8">
       <PageHeader
         eyebrow="Backtest Audit"
-        title="Backtest curves remain visible as an audit layer, while the main proposal story stays anchored in analyst productivity and validated detection quality."
-        description="Use the filters below to inspect backtest behaviour without letting a weak or sparse run dominate the product narrative."
+        title="Backtest curves remain visible as an audit layer for the supported subset of the latest reproducible run."
+        description="Use the filters below to inspect backtest behaviour without letting low-support patterns dominate the main dashboard story."
         aside={
           <div className="grid gap-3 sm:grid-cols-2">
             <StatCard
@@ -213,9 +213,9 @@ export default function ProfitabilityRoute() {
       ) : null}
 
       {lowSupportHiddenPatterns.length > 0 ? (
-        <SectionCard title="Support gate" kicker="Hidden Patterns">
+        <SectionCard title="Support floor" kicker="Hidden Patterns">
           <p className="text-sm leading-6 text-slate-600">
-            Hidden from the backtest audit by default because validation or test support is too low:{" "}
+            Hidden from the default backtest audit because validation or test support stayed below the configured floor:{" "}
             {lowSupportHiddenPatterns.map((pattern) => humanizePattern(pattern)).join(", ")}.
           </p>
         </SectionCard>

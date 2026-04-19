@@ -25,7 +25,7 @@ export function meta({}: Route.MetaArgs) {
     { title: "Overview · Candlestick Results" },
     {
       name: "description",
-      content: "Executive view of the latest finished candlestick experiment run and its profitability outlook.",
+      content: "Executive view of the latest reproducible candlestick run and the supported subset surfaced in the dashboard.",
     },
   ];
 }
@@ -65,14 +65,14 @@ export default function OverviewRoute() {
     <div className="space-y-8">
       <PageHeader
         eyebrow="Current Snapshot"
-        title="The selected presentation snapshot focuses on alert-ready pattern coverage, strong validated detection, and analyst workflows that save chart review time."
-        description="The homepage now prioritises high-support patterns and clean classification evidence. Profitability remains available as a backtest audit, but it no longer drives the main story."
+        title="The latest reproducible snapshot highlights the supported subset of patterns while keeping lower-support detections in the raw artifacts for audit."
+        description="This overview surfaces the patterns that cleared the configured support floor in the finished run. Lower-support patterns are hidden from the main story, not discarded from the underlying outputs."
         aside={
           <div className="grid gap-3 sm:grid-cols-2">
             <StatCard
-              label="Presentation-ready patterns"
+              label="Supported patterns"
               value={`${formatNumber(presentationPatterns.length)}/${formatNumber(snapshot.meta.patterns.length)}`}
-              hint="Patterns that cleared the validation and test support gates."
+              hint="Patterns that cleared the configured validation and test support floor."
               tone="positive"
             />
             <StatCard
@@ -86,9 +86,9 @@ export default function OverviewRoute() {
       />
 
       {lowSupportHiddenPatterns.length > 0 ? (
-        <SectionCard title="Presentation filters" kicker="Support Gate">
+        <SectionCard title="Support filters" kicker="Configured Floor">
           <p className="text-sm leading-6 text-slate-600">
-            {snapshot.presentation.presentation_reason} Hidden for low support:{" "}
+            {snapshot.presentation.presentation_reason} Hidden from the main dashboard for lower support:{" "}
             {lowSupportHiddenPatterns.map((pattern) => humanizePattern(pattern)).join(", ")}.
           </p>
         </SectionCard>
@@ -96,15 +96,15 @@ export default function OverviewRoute() {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Visible patterns"
+          label="Supported patterns"
           value={formatNumber(snapshot.hero.patterns_covered)}
-          hint="Patterns included in the presentation snapshot."
+          hint="Patterns currently surfaced from the finished run."
           tone="neutral"
         />
         <StatCard
           label="Model-pattern pairs"
           value={formatNumber(snapshot.hero.model_pair_count)}
-          hint="Visible combinations in the selected presentation snapshot."
+          hint="Supported combinations currently surfaced in the finished run."
           tone="neutral"
         />
         <StatCard
@@ -116,7 +116,7 @@ export default function OverviewRoute() {
         <StatCard
           label="Quality score"
           value={formatNumber(snapshot.presentation.quality_score)}
-          hint="Composite rank used to choose the presentation snapshot."
+          hint="Composite rank used to choose eligible finished runs."
           tone="neutral"
         />
       </section>
@@ -198,13 +198,13 @@ export default function OverviewRoute() {
 
       <SectionCard title="Champion backtest audit" kicker="Secondary Review" actions={<Pill tone="neutral">Backtest audit</Pill>}>
         <p className="mb-5 text-sm leading-6 text-slate-600">
-          Backtests stay visible as a secondary audit layer. They help us sanity-check the signal stream, but they are
-          not the core proposal story for this analyst-facing product.
+          Backtests remain visible as a secondary audit layer for the supported subset. They help us sanity-check the
+          signal stream without overstating low-support patterns in the main dashboard.
         </p>
         <ProfitCurveChart series={championCurves} />
       </SectionCard>
 
-      <SectionCard title="Visible pair audit" kicker="Highest Total PnL">
+      <SectionCard title="Supported pair audit" kicker="Highest Total PnL">
         <div className="overflow-hidden rounded-[1.5rem] border border-white/60">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-950 text-white">

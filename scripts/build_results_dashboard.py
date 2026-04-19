@@ -22,10 +22,10 @@ from candlestick.config import ensure_dir, load_config
 from candlestick.project_utils import load_processed_prices
 from candlestick.trading.backtest import run_backtest_for_predictions
 
-PRESENTATION_MIN_VAL_SUPPORT = 20
-PRESENTATION_MIN_TEST_SUPPORT = 20
-PRESENTATION_MIN_VISIBLE_PATTERNS = 3
-PRESENTATION_MIN_CHAMPION_F1 = 0.25
+DEFAULT_PRESENTATION_MIN_VAL_SUPPORT = 5
+DEFAULT_PRESENTATION_MIN_TEST_SUPPORT = 5
+DEFAULT_PRESENTATION_MIN_VISIBLE_PATTERNS = 3
+DEFAULT_PRESENTATION_MIN_CHAMPION_F1 = 0.25
 
 
 class PairBacktestRow(TypedDict):
@@ -82,6 +82,13 @@ class PatternSupportRow(TypedDict):
     val_positive_support: int
     test_positive_support: int
     presentation_eligible: bool
+
+
+class PresentationConfig(TypedDict):
+    minimum_validation_positive_support: int
+    minimum_test_positive_support: int
+    minimum_visible_patterns: int
+    minimum_champion_f1: float
 
 
 def _resolve_run_name(metrics_dir: Path, explicit: str | None) -> str:
@@ -147,6 +154,24 @@ def _read_json(path: Path) -> dict[str, Any]:
         return json.load(handle)
 
 
+def _presentation_config(cfg: dict[str, Any] | None = None) -> PresentationConfig:
+    presentation_cfg = cfg.get("dashboard", {}).get("presentation", {}) if cfg else {}
+    return {
+        "minimum_validation_positive_support": int(
+            presentation_cfg.get("minimum_validation_positive_support", DEFAULT_PRESENTATION_MIN_VAL_SUPPORT)
+        ),
+        "minimum_test_positive_support": int(
+            presentation_cfg.get("minimum_test_positive_support", DEFAULT_PRESENTATION_MIN_TEST_SUPPORT)
+        ),
+        "minimum_visible_patterns": int(
+            presentation_cfg.get("minimum_visible_patterns", DEFAULT_PRESENTATION_MIN_VISIBLE_PATTERNS)
+        ),
+        "minimum_champion_f1": float(
+            presentation_cfg.get("minimum_champion_f1", DEFAULT_PRESENTATION_MIN_CHAMPION_F1)
+        ),
+    }
+
+
 def _sanitize_for_json(value: Any) -> Any:
     if isinstance(value, dict):
         return {str(key): _sanitize_for_json(item) for key, item in value.items()}
@@ -189,7 +214,11 @@ def _load_metric_frames(metrics_root: Path, backtest_root: Path, gallery_root: P
     return summary_df, champions_df, champion_backtest, macro, gallery_summary
 
 
-def _pattern_support_from_split(split_df: pd.DataFrame) -> PatternSupportRow:
+def _pattern_support_from_split(
+    split_df: pd.DataFrame,
+    presentation_cfg: PresentationConfig | None = None,
+) -> PatternSupportRow:
+    presentation_cfg = presentation_cfg or _presentation_config()
     positives = (
         split_df.groupby("split")["label"].sum().to_dict()
         if not split_df.empty and {"split", "label"}.issubset(split_df.columns)
@@ -203,13 +232,17 @@ def _pattern_support_from_split(split_df: pd.DataFrame) -> PatternSupportRow:
         "val_positive_support": val_positive_support,
         "test_positive_support": test_positive_support,
         "presentation_eligible": (
-            val_positive_support >= PRESENTATION_MIN_VAL_SUPPORT
-            and test_positive_support >= PRESENTATION_MIN_TEST_SUPPORT
+            val_positive_support >= presentation_cfg["minimum_validation_positive_support"]
+            and test_positive_support >= presentation_cfg["minimum_test_positive_support"]
         ),
     }
 
 
-def _load_pattern_support(metrics_root: Path, summary_df: pd.DataFrame) -> dict[str, PatternSupportRow]:
+def _load_pattern_support(
+    metrics_root: Path,
+    summary_df: pd.DataFrame,
+    presentation_cfg: PresentationConfig,
+) -> dict[str, PatternSupportRow]:
     support_map: dict[str, PatternSupportRow] = {}
     for pattern in sorted(summary_df["pattern"].astype(str).unique().tolist()) if not summary_df.empty else []:
         split_path = metrics_root / pattern / "split_metadata.csv"
@@ -221,7 +254,7 @@ def _load_pattern_support(metrics_root: Path, summary_df: pd.DataFrame) -> dict[
                 "presentation_eligible": False,
             }
             continue
-        support_map[pattern] = _pattern_support_from_split(pd.read_csv(split_path))
+        support_map[pattern] = _pattern_support_from_split(pd.read_csv(split_path), presentation_cfg)
     return support_map
 
 
@@ -593,6 +626,7 @@ def _payload_hero(
 def _build_presentation_payload(
     summary_df: pd.DataFrame,
     champion_rows: list[ChampionPayloadRow],
+    presentation_cfg: PresentationConfig,
 ) -> dict[str, Any]:
     support_rows = (
         summary_df[
@@ -630,8 +664,12 @@ def _build_presentation_payload(
         if visible_champions
         else 0.0
     )
-    has_strong_champion = any(row["test_f1"] >= PRESENTATION_MIN_CHAMPION_F1 for row in visible_champions)
-    presentation_eligible = len(visible_patterns) >= PRESENTATION_MIN_VISIBLE_PATTERNS and has_strong_champion
+    has_strong_champion = any(
+        row["test_f1"] >= presentation_cfg["minimum_champion_f1"] for row in visible_champions
+    )
+    presentation_eligible = (
+        len(visible_patterns) >= presentation_cfg["minimum_visible_patterns"] and has_strong_champion
+    )
     quality_score = (
         len(visible_patterns) * 100.0
         + mean_visible_champion_f1 * 10.0
@@ -640,16 +678,16 @@ def _build_presentation_payload(
 
     if presentation_eligible:
         presentation_reason = (
-            f"{len(visible_patterns)} presentation-ready patterns cleared the support gates; "
-            f"{len(hidden_patterns)} hidden for low support."
+            f"Showing {len(visible_patterns)} supported patterns from the latest finished run; "
+            f"{len(hidden_patterns)} hidden for lower support."
         )
     elif visible_patterns:
         presentation_reason = (
-            f"Only {len(visible_patterns)} patterns cleared the support gates; "
-            "fall back to a stronger finished run for presentation."
+            f"Showing {len(visible_patterns)} supported patterns from the latest finished run; "
+            f"{len(hidden_patterns)} hidden for lower support."
         )
     else:
-        presentation_reason = "No patterns cleared the support gates; fall back to the strongest finished run."
+        presentation_reason = "No patterns cleared the configured support floor in this finished run."
 
     return {
         "presentation_eligible": presentation_eligible,
@@ -677,13 +715,14 @@ def _build_dashboard_payload(
         backtest_root,
         gallery_root,
     )
-    support_map = _load_pattern_support(metrics_root, summary_df)
+    presentation_cfg = _presentation_config(cfg)
+    support_map = _load_pattern_support(metrics_root, summary_df, presentation_cfg)
     summary_df = _annotate_with_support(summary_df, support_map)
     prices = load_processed_prices(cfg)
     backtest_payload = _build_backtest_payload(cfg, prices, metrics_root, summary_df)
     pair_backtest_df = pd.DataFrame(backtest_payload["pair_rows"])
     champion_rows = _build_champion_rows(champions_df, summary_df, pair_backtest_df)
-    presentation = _build_presentation_payload(summary_df, champion_rows)
+    presentation = _build_presentation_payload(summary_df, champion_rows, presentation_cfg)
 
     return {
         "meta": _payload_meta(run_name, output_dir, metrics_root, backtest_root, gallery_root, summary_df),

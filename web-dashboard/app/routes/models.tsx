@@ -21,7 +21,7 @@ export function meta({}: Route.MetaArgs) {
     { title: "Models · Candlestick Results" },
     {
       name: "description",
-      content: "Classification performance matrix, confidence intervals, and per-model drilldowns.",
+      content: "Classification performance matrix, confidence intervals, and per-model drilldowns for the supported subset of the latest run.",
     },
   ];
 }
@@ -52,8 +52,8 @@ export default function ModelsRoute() {
     <div className="space-y-8">
       <PageHeader
         eyebrow="Classification Layer"
-        title="Model selection stays anchored in validation discipline, then gets audited through high-support test-time precision, recall, and PR AUC."
-        description="This page only promotes patterns that cleared the presentation support gates. Low-support rows stay in the raw artifacts, but they do not take space in the proposal-facing matrix."
+        title="Model selection stays anchored in validation discipline, then gets surfaced through the supported subset of patterns from the latest reproducible run."
+        description="This page focuses the matrix on patterns that cleared the configured support floor. Lower-support rows remain in the raw artifacts, but they do not take space in the main comparison view."
         aside={
           <div className="grid gap-3 sm:grid-cols-2">
             {modelAverages.slice(0, 2).map((row) => (
@@ -70,9 +70,9 @@ export default function ModelsRoute() {
       />
 
       {lowSupportHiddenPatterns.length > 0 ? (
-        <SectionCard title="Support gate" kicker="Hidden Patterns">
+        <SectionCard title="Support floor" kicker="Hidden Patterns">
           <p className="text-sm leading-6 text-slate-600">
-            Hidden from the proposal matrix because validation or test support is too low:{" "}
+            Hidden from the main matrix because validation or test support stayed below the configured floor:{" "}
             {lowSupportHiddenPatterns.map((pattern) => humanizePattern(pattern)).join(", ")}.
           </p>
         </SectionCard>

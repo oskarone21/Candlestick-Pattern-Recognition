@@ -20,5 +20,9 @@ def test_production_repro_override_matches_verified_profile():
     assert cfg["optuna"]["enabled"] is True
     assert cfg["optuna"]["n_trials"] == 6
     assert cfg["optuna"]["epochs_per_trial"] == 6
+    assert cfg["dashboard"]["presentation"]["minimum_validation_positive_support"] == 5
+    assert cfg["dashboard"]["presentation"]["minimum_test_positive_support"] == 5
+    assert cfg["dashboard"]["presentation"]["minimum_visible_patterns"] == 3
+    assert cfg["dashboard"]["presentation"]["minimum_champion_f1"] == 0.25
     assert cfg["labeling"]["double_top"]["geometry"]["min_pullback_pct"] == 0.0005
     assert cfg["labeling"]["double_bottom"]["geometry"]["min_bounce_pct"] == 0.0005
