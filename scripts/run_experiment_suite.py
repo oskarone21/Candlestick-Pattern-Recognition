@@ -263,19 +263,15 @@ def _select_pattern_champion(
     min_val_support: int,
 ) -> dict[str, Any] | None:
     best_supported: dict[str, Any] | None = None
-    best_any: dict[str, Any] | None = None
 
     for result in model_results:
         score = float(metric_value(result["val_metrics"], primary_metric))
         support_ok = result["val_metrics"]["support"]["positive"] >= min_val_support
 
-        if best_any is None or score > float(best_any["selection_score"]):
-            best_any = {**result, "selection_score": score}
-
         if support_ok and (best_supported is None or score > float(best_supported["selection_score"])):
             best_supported = {**result, "selection_score": score}
 
-    return best_supported or best_any
+    return best_supported
 
 
 def run_experiment_suite(cfg: dict[str, Any], smoke: bool = False) -> dict[str, Any]:
