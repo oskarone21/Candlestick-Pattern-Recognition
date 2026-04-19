@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from torch import nn
 
+from candlestick.domain import DEFAULT_DROPOUT, DEFAULT_HIDDEN_DIM, DEFAULT_SEED, MODEL_LSTM
 from candlestick.models.torch_common import TorchBinaryModel, train_torch_binary
 
 
@@ -13,9 +14,9 @@ class LSTMClassifier(nn.Module):
     def __init__(
         self,
         input_dim: int,
-        hidden_dim: int = 64,
+        hidden_dim: int = DEFAULT_HIDDEN_DIM,
         num_layers: int = 2,
-        dropout: float = 0.2,
+        dropout: float = DEFAULT_DROPOUT,
     ):
         super().__init__()
         self.lstm = nn.LSTM(

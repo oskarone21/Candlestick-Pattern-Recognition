@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import argparse
-import sys
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+try:
+    from scripts._bootstrap import ensure_repo_root
+except ImportError:
+    from _bootstrap import ensure_repo_root
+
+ensure_repo_root()
 
 from candlestick.config import load_config
 from candlestick.data.kaggle_ingest import load_kaggle_dataframe, save_raw_csv
 from candlestick.data.raw_quality import build_raw_quality_report, write_raw_quality_report
+from candlestick.project_utils import instrument_from_cfg
 
 
 def main() -> None:
@@ -34,7 +36,7 @@ def main() -> None:
     cfg = load_config(args.config, args.config_override, args.set_overrides)
 
     df = load_kaggle_dataframe(cfg)
-    symbol_filter = cfg["data_source"].get("instrument", "SPY")
+    symbol_filter = instrument_from_cfg(cfg)
     if "symbol" in df.columns:
         df = df[df["symbol"].astype(str).str.upper() == str(symbol_filter).upper()].copy()
 

@@ -75,3 +75,100 @@ def test_backtest_blocks_same_pattern_overlap(base_cfg):
 
     assert len(trades) == 1
     assert summary["rejected_same_pattern_overlap"] == 1
+
+
+def test_backtest_rejects_long_stop_above_entry(base_cfg):
+    ts = pd.date_range("2024-01-02 09:30", periods=6, freq="15min", tz="America/New_York")
+    px = pd.DataFrame(
+        {
+            "symbol": "SPY",
+            "ts_event": ts,
+            "open": [100.0, 100.0, 100.2, 100.4, 100.6, 100.8],
+            "high": [100.3, 100.4, 100.6, 100.8, 101.0, 101.2],
+            "low": [99.8, 99.9, 100.0, 100.2, 100.4, 100.6],
+            "close": [100.0, 100.2, 100.4, 100.6, 100.8, 101.0],
+            "volume": [1000] * 6,
+        }
+    )
+    pred = pd.DataFrame(
+        {
+            "window_end_idx": [0],
+            "window_end_ts": [str(ts[0])],
+            "proba": [0.95],
+            "label": [0],
+            "direction": ["long"],
+            "stop_price": [100.5],
+            "pattern": ["double_bottom"],
+        }
+    )
+
+    trades, summary = run_backtest_for_predictions(px, pred, base_cfg, threshold=0.5)
+
+    assert trades.empty
+    assert summary["rejected_invalid_stop"] == 1
+
+
+def test_backtest_rejects_tiny_stop_distance(base_cfg):
+    base_cfg["backtest"]["min_stop_distance_bps"] = 10
+    ts = pd.date_range("2024-01-02 09:30", periods=6, freq="15min", tz="America/New_York")
+    px = pd.DataFrame(
+        {
+            "symbol": "SPY",
+            "ts_event": ts,
+            "open": [100.0, 100.0, 100.2, 100.4, 100.6, 100.8],
+            "high": [100.3, 100.4, 100.6, 100.8, 101.0, 101.2],
+            "low": [99.8, 99.9, 100.0, 100.2, 100.4, 100.6],
+            "close": [100.0, 100.2, 100.4, 100.6, 100.8, 101.0],
+            "volume": [1000] * 6,
+        }
+    )
+    pred = pd.DataFrame(
+        {
+            "window_end_idx": [0],
+            "window_end_ts": [str(ts[0])],
+            "proba": [0.95],
+            "label": [0],
+            "direction": ["long"],
+            "stop_price": [99.95],
+            "pattern": ["double_bottom"],
+        }
+    )
+
+    trades, summary = run_backtest_for_predictions(px, pred, base_cfg, threshold=0.5)
+
+    assert trades.empty
+    assert summary["rejected_tiny_stop"] == 1
+
+
+def test_backtest_caps_gross_exposure(base_cfg):
+    base_cfg["backtest"]["risk_per_trade_bps"] = 1000
+    base_cfg["backtest"]["max_gross_exposure_multiple"] = 1.0
+    ts = pd.date_range("2024-01-02 09:30", periods=6, freq="15min", tz="America/New_York")
+    px = pd.DataFrame(
+        {
+            "symbol": "SPY",
+            "ts_event": ts,
+            "open": [100.0, 100.0, 100.5, 101.0, 101.5, 102.0],
+            "high": [100.2, 101.0, 102.5, 102.8, 103.0, 103.2],
+            "low": [99.8, 99.7, 100.3, 100.8, 101.2, 101.8],
+            "close": [100.0, 100.8, 102.0, 102.5, 102.8, 103.0],
+            "volume": [1000, 1200, 1300, 1400, 1500, 1600],
+        }
+    )
+    pred = pd.DataFrame(
+        {
+            "window_end_idx": [0],
+            "window_end_ts": [str(ts[0])],
+            "proba": [0.95],
+            "label": [1],
+            "direction": ["long"],
+            "stop_price": [99.5],
+            "pattern": ["double_bottom"],
+        }
+    )
+
+    trades, summary = run_backtest_for_predictions(px, pred, base_cfg, threshold=0.5)
+
+    assert len(trades) == 1
+    assert summary["trades"] == 1
+    assert trades.iloc[0]["shares"] == 10000

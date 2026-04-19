@@ -1,8 +1,8 @@
 # Core data stack
 numpy==1.26.4
 pandas==2.2.3
-yfinance>=0.2.40
-kagglehub[pandas-datasets]>=0.3.12
+yfinance==1.2.2
+kagglehub[pandas-datasets]==1.0.0
 
 # Chart rendering and image handling
 matplotlib==3.9.2

@@ -2,20 +2,31 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 import pandas as pd
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+try:
+    from scripts._bootstrap import ensure_repo_root
+except ImportError:
+    from _bootstrap import ensure_repo_root
+
+ensure_repo_root()
 
 from candlestick.config import ensure_dir, load_config
 from candlestick.data.clean_resample import clean_ohlcv, drop_exact_duplicate_ohlcv, resample_ohlcv
 from candlestick.data.kaggle_ingest import load_kaggle_dataframe, save_raw_csv
 from candlestick.data.session_quality import validate_intraday_by_session_calendar
 from candlestick.data.timezone_audit import normalize_and_audit_timezone, write_timezone_report
+from candlestick.domain import (
+    DEFAULT_EARLY_CLOSE_END,
+    DEFAULT_INSTRUMENT,
+    DEFAULT_MARKET_CALENDAR,
+    DEFAULT_SESSION_END,
+    DEFAULT_SESSION_START,
+)
+from candlestick.eval.label_sanity import summarize_processed_prices
+from candlestick.project_utils import timeframe_to_minutes, working_timezone_from_cfg
 
 
 def _read_or_download_raw(cfg: dict, refresh_raw: bool = False) -> pd.DataFrame:
@@ -25,21 +36,10 @@ def _read_or_download_raw(cfg: dict, refresh_raw: bool = False) -> pd.DataFrame:
         return df
 
     df = load_kaggle_dataframe(cfg)
-    symbol_filter = cfg["data_source"].get("instrument", "SPY")
+    symbol_filter = cfg["data_source"].get("instrument", DEFAULT_INSTRUMENT)
     df = df[df["symbol"].astype(str).str.upper() == str(symbol_filter).upper()].copy()
     save_raw_csv(df, raw_path)
     return df
-
-
-def _timeframe_to_minutes(rule: str) -> int:
-    norm = rule.strip().lower()
-    if norm.endswith("min"):
-        return int(norm[:-3])
-    if norm.endswith("m"):
-        return int(norm[:-1])
-    if norm.endswith("h"):
-        return int(norm[:-1]) * 60
-    raise ValueError(f"Unsupported timeframe rule: {rule}")
 
 
 def _write_session_coverage_report(coverage: pd.DataFrame, output_path: str | Path) -> Path:
@@ -85,7 +85,7 @@ def main() -> None:
 
     ts_cfg = cfg["data_source"]["timestamp"]
     timezone_in_data = ts_cfg.get("timezone_in_data")
-    working_timezone = ts_cfg.get("convert_to_timezone", "America/New_York")
+    working_timezone = working_timezone_from_cfg(cfg)
 
     tz_result = normalize_and_audit_timezone(
         raw_df,
@@ -104,10 +104,10 @@ def main() -> None:
     session_cfg = cfg["data_source"].get("session", {})
     session_result = validate_intraday_by_session_calendar(
         clean_result.frame,
-        calendar=session_cfg.get("calendar", "XNYS"),
-        regular_start=session_cfg.get("start", "09:30"),
-        regular_end=session_cfg.get("end", "16:00"),
-        early_close_end=session_cfg.get("early_close_end", "13:00"),
+        calendar=session_cfg.get("calendar", DEFAULT_MARKET_CALENDAR),
+        regular_start=session_cfg.get("start", DEFAULT_SESSION_START),
+        regular_end=session_cfg.get("end", DEFAULT_SESSION_END),
+        early_close_end=session_cfg.get("early_close_end", DEFAULT_EARLY_CLOSE_END),
         keep_official_early_closes=session_cfg.get("keep_official_early_closes", True),
         drop_anomalous_partial_days=session_cfg.get("drop_anomalous_partial_days", True),
     )
@@ -141,9 +141,10 @@ def main() -> None:
         "invalid_ohlc_rows": clean_result.invalid_ohlc_rows,
         "timezone_report": tz_result.report,
         "session_calendar_summary": session_result.summary,
+        "processed_price_signature": summarize_processed_prices(prepared),
     }
 
-    target_minutes = _timeframe_to_minutes(cfg["resampling"].get("target_timeframe", "15min"))
+    target_minutes = timeframe_to_minutes(cfg["resampling"].get("target_timeframe", "15min"))
 
     coverage_df = session_result.coverage.copy()
     coverage_trading = coverage_df[coverage_df["is_trading_day"]].copy() if not coverage_df.empty else coverage_df

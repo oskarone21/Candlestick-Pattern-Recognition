@@ -15,9 +15,25 @@ from sklearn.metrics import (
     recall_score,
 )
 
+from candlestick.domain import (
+    DEFAULT_BOOTSTRAP_ITERATIONS,
+    DEFAULT_SEED,
+    DEFAULT_THRESHOLD_GRID_SIZE,
+    METRIC_F1,
+    METRIC_F2,
+    METRIC_PRECISION,
+    METRIC_RECALL,
+    SUPPORTED_SELECTION_METRICS,
+)
+
 
 def evaluate_threshold_metrics(y_true: np.ndarray, y_prob: np.ndarray, threshold: float) -> dict:
     y_pred = (y_prob >= threshold).astype(int)
+    positive_support = int((y_true == 1).sum())
+    negative_support = int((y_true == 0).sum())
+
+    # Avoid sklearn warning spam when a fold has no positive class.
+    pr_auc = 0.0 if positive_support == 0 else float(average_precision_score(y_true, y_prob))
 
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
     return {
@@ -27,7 +43,7 @@ def evaluate_threshold_metrics(y_true: np.ndarray, y_prob: np.ndarray, threshold
         "recall": float(recall_score(y_true, y_pred, zero_division=0)),
         "f1": float(f1_score(y_true, y_pred, zero_division=0)),
         "f2": float(fbeta_score(y_true, y_pred, beta=2.0, zero_division=0)),
-        "pr_auc": float(average_precision_score(y_true, y_prob)),
+        "pr_auc": pr_auc,
         "confusion_matrix": {
             "tn": int(tn),
             "fp": int(fp),
@@ -35,15 +51,15 @@ def evaluate_threshold_metrics(y_true: np.ndarray, y_prob: np.ndarray, threshold
             "tp": int(tp),
         },
         "support": {
-            "positive": int((y_true == 1).sum()),
-            "negative": int((y_true == 0).sum()),
+            "positive": positive_support,
+            "negative": negative_support,
         },
     }
 
 
 def metric_value(metrics: dict, metric: str) -> float:
-    key = (metric or "f1").lower()
-    if key not in {"accuracy", "precision", "recall", "f1", "f2", "pr_auc"}:
+    key = (metric or METRIC_F1).lower()
+    if key not in SUPPORTED_SELECTION_METRICS:
         raise ValueError(f"Unsupported metric: {metric}")
     return float(metrics[key])
 
@@ -51,7 +67,7 @@ def metric_value(metrics: dict, metric: str) -> float:
 def threshold_grid(
     y_true: np.ndarray,
     y_prob: np.ndarray,
-    grid_size: int = 181,
+    grid_size: int = DEFAULT_THRESHOLD_GRID_SIZE,
 ) -> list[dict]:
     thresholds = np.linspace(0.05, 0.95, grid_size)
     return [evaluate_threshold_metrics(y_true, y_prob, threshold=float(t)) for t in thresholds]
@@ -69,7 +85,7 @@ def _ranked_thresholds(
         if row["precision"] >= precision_floor and row["recall"] >= recall_floor
     ]
 
-    if primary_metric == "f2":
+    if primary_metric == METRIC_F2:
         if eligible:
             return sorted(
                 eligible,
@@ -121,7 +137,7 @@ def choose_threshold(
     are unattainable, fall back to the best unconstrained F2 threshold.
     """
 
-    metric_name = (primary_metric or "f1").lower()
+    metric_name = (primary_metric or METRIC_F1).lower()
     grid = threshold_grid(y_true=y_true, y_prob=y_prob, grid_size=grid_size)
     ranked = _ranked_thresholds(
         grid=grid,
@@ -142,13 +158,13 @@ def choose_threshold(
 
 
 def _metric_function(metric: str) -> Callable[[np.ndarray, np.ndarray], float]:
-    if metric == "precision":
+    if metric == METRIC_PRECISION:
         return lambda y, p: precision_score(y, p, zero_division=0)
-    if metric == "recall":
+    if metric == METRIC_RECALL:
         return lambda y, p: recall_score(y, p, zero_division=0)
-    if metric == "f1":
+    if metric == METRIC_F1:
         return lambda y, p: f1_score(y, p, zero_division=0)
-    if metric == "f2":
+    if metric == METRIC_F2:
         return lambda y, p: fbeta_score(y, p, beta=2.0, zero_division=0)
     raise ValueError(f"Unsupported metric: {metric}")
 
@@ -199,27 +215,27 @@ def attach_confidence_intervals(
     threshold = float(metrics["threshold"])
     out = dict(metrics)
     out["confidence_intervals"] = {
-        "precision": bootstrap_confidence_interval(
+        METRIC_PRECISION: bootstrap_confidence_interval(
             y_true=y_true,
             y_prob=y_prob,
             threshold=threshold,
-            metric="precision",
+            metric=METRIC_PRECISION,
             n_bootstrap=n_bootstrap,
             seed=seed,
         ),
-        "recall": bootstrap_confidence_interval(
+        METRIC_RECALL: bootstrap_confidence_interval(
             y_true=y_true,
             y_prob=y_prob,
             threshold=threshold,
-            metric="recall",
+            metric=METRIC_RECALL,
             n_bootstrap=n_bootstrap,
             seed=seed,
         ),
-        "f1": bootstrap_confidence_interval(
+        METRIC_F1: bootstrap_confidence_interval(
             y_true=y_true,
             y_prob=y_prob,
             threshold=threshold,
-            metric="f1",
+            metric=METRIC_F1,
             n_bootstrap=n_bootstrap,
             seed=seed,
         ),

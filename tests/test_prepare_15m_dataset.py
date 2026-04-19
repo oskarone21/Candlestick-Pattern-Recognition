@@ -87,3 +87,5 @@ def test_prepare_dataset_pipeline_creates_cleaned_outputs(tmp_path, base_cfg):
     with quality_path.open("r", encoding="utf-8") as f:
         quality = json.load(f)
     assert quality["session_calendar_summary"]["dropped_days"] >= 2
+    assert quality["processed_price_signature"]["row_count"] == 40
+    assert quality["processed_price_signature"]["trading_day_count"] == 2

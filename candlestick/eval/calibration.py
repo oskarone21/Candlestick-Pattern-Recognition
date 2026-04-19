@@ -7,8 +7,11 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import brier_score_loss
 
 
+from candlestick.domain import CalibrationMethod, EPSILON_COMPARE
+
+
 def _clip_probabilities(y_prob: np.ndarray) -> np.ndarray:
-    return np.clip(np.asarray(y_prob, dtype=float), 1.0e-6, 1.0 - 1.0e-6)
+    return np.clip(np.asarray(y_prob, dtype=float), EPSILON_COMPARE, 1.0 - EPSILON_COMPARE)
 
 
 def _logit(y_prob: np.ndarray) -> np.ndarray:

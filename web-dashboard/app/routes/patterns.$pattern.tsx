@@ -10,6 +10,7 @@ import {
   formatNumber,
   formatPercent,
   formatSignedCurrency,
+  visiblePatterns,
   humanizePattern,
   pnlTone,
 } from "../lib/dashboard";
@@ -83,11 +84,11 @@ export default function PatternRoute() {
     return null;
   }
 
-  if (!snapshot.meta.patterns.includes(pattern)) {
+  if (!visiblePatterns(snapshot).includes(pattern)) {
     return (
       <EmptyState
-        title="Pattern not found in the latest run"
-        description="This route only surfaces patterns that exist in the newest completed dashboard snapshot."
+        title="Pattern hidden from the presentation snapshot"
+        description="This route only surfaces patterns that cleared the presentation support gates. The raw artifacts may still contain the hidden pattern, but it is not shown in the proposal-facing dashboard."
       />
     );
   }

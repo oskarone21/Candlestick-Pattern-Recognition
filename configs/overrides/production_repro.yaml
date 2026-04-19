@@ -1,3 +1,10 @@
+# Reproducible CPU-first profile for the best verified live run.
+
+project:
+  run_name: production_repro_cpu
+  seed: 42
+  device: cpu
+
 labeling:
   confirmation:
     breakout_confirmation_pct: 0.005
@@ -34,3 +41,32 @@ labeling:
       prior_trend_pct: 0.002
     volume_rules:
       breakout_volume_min_multiplier: 1.1
+
+model:
+  sequence_normalization_mode: window_minmax
+
+model_selection:
+  candidate_models:
+    - tcn
+    - lstm
+  primary_selection_metric: f1
+
+training:
+  epochs: 120
+  early_stopping_patience: 15
+  mixed_precision: false
+  augmentation:
+    enabled: true
+    n_copies_per_positive: 2
+    gaussian_noise_std: 0.012
+    price_coherent_noise_std: 0.008
+    volume_jitter_range: 0.12
+
+optuna:
+  enabled: true
+  tuned_models:
+    - tcn
+    - lstm
+  n_trials: 6
+  timeout_hours: 0.30
+  epochs_per_trial: 6

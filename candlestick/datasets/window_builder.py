@@ -8,8 +8,18 @@ import numpy as np
 import pandas as pd
 
 from candlestick.config import ensure_dir
+from candlestick.domain import (
+    COLUMN_LABEL,
+    COLUMN_TS_EVENT,
+    COLUMN_ANCHOR_IDX,
+    COLUMN_WINDOW_END_IDX,
+    COLUMN_WINDOW_END_TS,
+    DEFAULT_POS_NEG_RATIO,
+    DEFAULT_SEED,
+    OHLCV_COLUMNS,
+)
 
-FEATURE_COLUMNS = ["open", "high", "low", "close", "volume"]
+FEATURE_COLUMNS = list(OHLCV_COLUMNS)
 
 
 def _parse_ratio(ratio: str) -> tuple[int, int]:
@@ -58,13 +68,13 @@ def build_pattern_dataset(
     if events.empty:
         return np.zeros((0, lookback_bars, len(feature_columns))), np.zeros((0,), dtype=int), events
 
-    df = prices.sort_values("ts_event").reset_index(drop=True).copy()
+    df = prices.sort_values(COLUMN_TS_EVENT).reset_index(drop=True).copy()
     X_list: list[np.ndarray] = []
     y_list: list[int] = []
     meta_rows: list[dict[str, Any]] = []
 
     for _, row in events.iterrows():
-        anchor_idx = int(row["anchor_idx"])
+        anchor_idx = int(row[COLUMN_ANCHOR_IDX])
         start_idx = anchor_idx - lookback_bars + 1
         if start_idx < 0 or anchor_idx >= len(df):
             continue
@@ -74,13 +84,13 @@ def build_pattern_dataset(
             continue
 
         X_list.append(window.to_numpy(dtype=np.float32))
-        y_list.append(int(row["label"]))
+        y_list.append(int(row[COLUMN_LABEL]))
 
         meta = row.to_dict()
         meta["window_start_idx"] = start_idx
-        meta["window_end_idx"] = anchor_idx
-        meta["window_start_ts"] = str(df.iloc[start_idx]["ts_event"])
-        meta["window_end_ts"] = str(df.iloc[anchor_idx]["ts_event"])
+        meta[COLUMN_WINDOW_END_IDX] = anchor_idx
+        meta["window_start_ts"] = str(df.iloc[start_idx][COLUMN_TS_EVENT])
+        meta[COLUMN_WINDOW_END_TS] = str(df.iloc[anchor_idx][COLUMN_TS_EVENT])
         meta_rows.append(meta)
 
     if not X_list:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -36,5 +37,13 @@ def test_integration_smoke_run(tmp_path, base_cfg):
     run_root = tmp_path / "metrics" / "smoke_ci"
     assert (run_root / "model_comparison_summary.csv").exists()
     assert (run_root / "champions.csv").exists()
+    assert (run_root / "label_sanity.json").exists()
     assert (run_root / "macro_summary.json").exists()
+    assert (run_root / "repro_manifest.json").exists()
     assert (run_root / "runtime_summary.json").exists()
+
+    manifest = json.loads((run_root / "repro_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["run_name"] == "smoke_ci"
+    assert manifest["config_stack"]["base_config"] == str(cfg_path)
+    assert "numpy" in manifest["dependency_versions"]
+    assert "processed_15m" in manifest["datasets"]

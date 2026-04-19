@@ -7,7 +7,10 @@ import numpy as np
 from sklearn.ensemble import HistGradientBoostingClassifier
 
 
-def build_hgb_model(seed: int = 42, params: dict[str, Any] | None = None) -> HistGradientBoostingClassifier:
+from candlestick.domain import DEFAULT_SEED
+
+
+def build_hgb_model(seed: int = DEFAULT_SEED, params: dict[str, Any] | None = None) -> HistGradientBoostingClassifier:
     params = params or {}
     return HistGradientBoostingClassifier(
         random_state=seed,
@@ -23,7 +26,7 @@ def build_hgb_model(seed: int = 42, params: dict[str, Any] | None = None) -> His
 def train_hgb(
     X_train: np.ndarray,
     y_train: np.ndarray,
-    seed: int = 42,
+    seed: int = DEFAULT_SEED,
     params: dict[str, Any] | None = None,
 ) -> HistGradientBoostingClassifier:
     model = build_hgb_model(seed=seed, params=params)

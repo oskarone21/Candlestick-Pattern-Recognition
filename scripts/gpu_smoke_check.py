@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
-from pathlib import Path
 
 import numpy as np
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+try:
+    from scripts._bootstrap import ensure_repo_root
+except ImportError:
+    from _bootstrap import ensure_repo_root
+
+ensure_repo_root()
 
 from candlestick.config import load_config
+from candlestick.domain import MODEL_TCN
 from candlestick.models.registry import predict_model_proba, train_model
 from candlestick.models.torch_common import runtime_summary
 
@@ -21,7 +23,7 @@ def main() -> None:
     parser.add_argument("--config", default="configs/config.yaml")
     parser.add_argument("--config-override", action="append", default=[])
     parser.add_argument("--set", dest="set_overrides", action="append", default=[])
-    parser.add_argument("--model", default="tcn", choices=["lstm", "tcn"])
+    parser.add_argument("--model", default=MODEL_TCN, choices=["lstm", MODEL_TCN])
     parser.add_argument("--require-cuda", action="store_true")
     args = parser.parse_args()
 

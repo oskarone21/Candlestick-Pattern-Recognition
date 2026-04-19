@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from torch import nn
 
+from candlestick.domain import DEFAULT_DROPOUT, DEFAULT_HIDDEN_DIM, DEFAULT_SEED, MODEL_TCN
 from candlestick.models.torch_common import TorchBinaryModel, train_torch_binary
 
 

@@ -9,6 +9,7 @@ import pandas as pd
 from pandas import DatetimeTZDtype
 
 from candlestick.config import ensure_dir
+from candlestick.domain import COLUMN_SYMBOL, COLUMN_TS_EVENT
 
 
 class TimezoneError(RuntimeError):

@@ -3,7 +3,15 @@ import type { ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { NavLink, useLocation, useNavigation } from "react-router";
 
-import { formatDateTime, formatNumber, humanizePattern, type DashboardSnapshot, type LatestFinishedRun } from "../lib/dashboard";
+import {
+  formatDateTime,
+  formatNumber,
+  hiddenPatterns,
+  humanizePattern,
+  visiblePatterns,
+  type DashboardSnapshot,
+  type LatestFinishedRun,
+} from "../lib/dashboard";
 import { EmptyState, Pill } from "./ui";
 
 export function DashboardShell({
@@ -18,11 +26,13 @@ export function DashboardShell({
   const navigation = useNavigation();
   const location = useLocation();
   const prefersReducedMotion = useReducedMotion();
+  const presentationPatterns = snapshot ? visiblePatterns(snapshot) : [];
+  const lowSupportHiddenPatterns = snapshot ? hiddenPatterns(snapshot) : [];
   const navItems = [
     { label: "Overview", to: "/" },
     { label: "Models", to: "/models" },
     { label: "Profitability", to: "/profitability" },
-    ...(snapshot?.meta.patterns ?? []).map((pattern) => ({
+    ...presentationPatterns.map((pattern) => ({
       label: humanizePattern(pattern),
       to: `/patterns/${pattern}`,
     })),
@@ -41,7 +51,7 @@ export function DashboardShell({
             <p className="eyebrow">Candlestick Pattern Intelligence</p>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-lg font-semibold tracking-[0.02em] text-slate-950">Strategy Presentation Dashboard</h1>
-              {snapshot ? <Pill tone="positive">{snapshot.meta.run_name}</Pill> : null}
+              {snapshot ? <Pill tone="positive">Presentation snapshot · {snapshot.meta.run_name}</Pill> : null}
             </div>
           </div>
 
@@ -66,14 +76,17 @@ export function DashboardShell({
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 pb-4 text-xs text-slate-500 sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center gap-2">
             <Pill tone="neutral">
-              {snapshot ? `${formatNumber(snapshot.meta.models.length)} models` : "Waiting for a finished run"}
+              {snapshot ? `${formatNumber(snapshot.meta.models.length)} evaluated models` : "Waiting for a finished run"}
             </Pill>
             <Pill tone="neutral">
-              {snapshot ? `${formatNumber(snapshot.meta.patterns.length)} patterns` : "No classification snapshot yet"}
+              {snapshot ? `${formatNumber(presentationPatterns.length)} presentation patterns` : "No classification snapshot yet"}
             </Pill>
+            {snapshot && lowSupportHiddenPatterns.length > 0 ? (
+              <Pill tone="caution">{`${formatNumber(lowSupportHiddenPatterns.length)} hidden for low support`}</Pill>
+            ) : null}
           </div>
           {latestRun ? (
-            <span>Latest finished run updated {formatDateTime(latestRun.modifiedAt)}</span>
+            <span>Latest raw finished run updated {formatDateTime(latestRun.modifiedAt)}</span>
           ) : (
             <span>No completed run detected</span>
           )}

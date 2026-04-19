@@ -6,7 +6,9 @@ import pandas as pd
 import pytest
 
 from candlestick.config import load_config
+from candlestick.datasets.window_builder import build_pattern_dataset
 from candlestick.labeling.pattern_rules import detect_pattern_events
+from scripts.run_experiment_suite import _prepare_split
 
 
 @pytest.mark.skipif(
@@ -28,3 +30,16 @@ def test_intraday_balanced_profile_yields_positives_for_all_patterns():
         events = detect_pattern_events(df, pattern, cfg)
         assert not events.empty
         assert int((events["label"] == 1).sum()) > 0
+
+        X, y, meta = build_pattern_dataset(
+            df,
+            events,
+            lookback_bars=int(cfg["windowing"].get("lookback_bars", 80)),
+        )
+        assert len(y) > 0
+        assert int((y == 1).sum()) > 0
+
+        split_data, _ = _prepare_split(X, y, meta, cfg)
+        assert int((split_data["y_train"] == 1).sum()) > 0
+        assert int((split_data["y_val"] == 1).sum()) > 0
+        assert int((split_data["y_test"] == 1).sum()) > 0

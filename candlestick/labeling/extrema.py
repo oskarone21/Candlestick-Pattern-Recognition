@@ -5,11 +5,13 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from candlestick.domain import COLUMN_CLOSE, CFG_LABELING, CFG_SMOOTHING, EPSILON_COMPARE, ExtremumKind
+
 
 @dataclass
 class Extremum:
     idx: int
-    kind: str  # "max" | "min"
+    kind: str  # ExtremumKind value
     price: float
 
 
@@ -169,8 +171,8 @@ def find_local_extrema_causal(
 
 def detect_extrema_from_close(df: pd.DataFrame, cfg: dict) -> list[Extremum]:
     """Apply configured smoothing and extrema extraction to a symbol dataframe."""
-    ext_cfg = cfg["labeling"]["extrema_detection"]
-    bw_cfg = ext_cfg["smoothing"]["bandwidth"]
+    ext_cfg = cfg[CFG_LABELING]["extrema_detection"]
+    bw_cfg = ext_cfg[CFG_SMOOTHING]["bandwidth"]
 
     # The AICc entry is documented in config; this implementation uses the midpoint as robust default.
     if bw_cfg.get("selection_method", "aicc") == "aicc":
@@ -178,25 +180,26 @@ def detect_extrema_from_close(df: pd.DataFrame, cfg: dict) -> list[Extremum]:
     else:
         bandwidth = float(bw_cfg.get("default_bandwidth", 6.0))
 
-    smoothing_cfg = ext_cfg.get("smoothing", {})
+    smoothing_cfg = ext_cfg.get(CFG_SMOOTHING, {})
+    price_field = ext_cfg.get("price_field", COLUMN_CLOSE)
     if bool(smoothing_cfg.get("causal", True)):
-        smoothed = gaussian_smooth_causal(df[ext_cfg.get("price_field", "close")], bandwidth=bandwidth)
+        smoothed = gaussian_smooth_causal(df[price_field], bandwidth=bandwidth)
     else:
-        smoothed = gaussian_smooth(df[ext_cfg.get("price_field", "close")], bandwidth=bandwidth)
+        smoothed = gaussian_smooth(df[price_field], bandwidth=bandwidth)
 
     val_cfg = ext_cfg.get("extrema_validation", {})
     if bool(val_cfg.get("causal", True)):
         extrema = find_local_extrema_causal(
             smoothed,
             min_separation=int(val_cfg.get("min_extrema_separation_bars", 2)),
-            derivative_epsilon=float(val_cfg.get("zero_crossing_epsilon", 1.0e-6)),
+            derivative_epsilon=float(val_cfg.get("zero_crossing_epsilon", EPSILON_COMPARE)),
             enforce_alternation=bool(val_cfg.get("enforce_alternation", True)),
         )
     else:
         extrema = find_local_extrema(
             smoothed,
             min_separation=int(val_cfg.get("min_extrema_separation_bars", 2)),
-            derivative_epsilon=float(val_cfg.get("zero_crossing_epsilon", 1.0e-6)),
+            derivative_epsilon=float(val_cfg.get("zero_crossing_epsilon", EPSILON_COMPARE)),
             min_second_derivative_abs=float(val_cfg.get("min_second_derivative_abs", 1.0e-7)),
             enforce_alternation=bool(val_cfg.get("enforce_alternation", True)),
         )

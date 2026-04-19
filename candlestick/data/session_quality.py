@@ -7,6 +7,15 @@ from typing import Any
 import pandas as pd
 from pandas import DatetimeTZDtype
 
+from candlestick.domain import (
+    COLUMN_SYMBOL,
+    COLUMN_TS_EVENT,
+    DEFAULT_EARLY_CLOSE_END,
+    DEFAULT_MARKET_CALENDAR,
+    DEFAULT_SESSION_END,
+    DEFAULT_SESSION_START,
+)
+
 
 def _hhmm_to_minute(value: str) -> int:
     hour, minute = [int(x) for x in value.split(":")]
@@ -125,9 +134,9 @@ def build_xnys_schedule(
     start_date: date,
     end_date: date,
     timezone: str,
-    regular_start: str = "09:30",
-    regular_end: str = "16:00",
-    early_close_end: str = "13:00",
+    regular_start: str = DEFAULT_SESSION_START,
+    regular_end: str = DEFAULT_SESSION_END,
+    early_close_end: str = DEFAULT_EARLY_CLOSE_END,
     keep_official_early_closes: bool = True,
 ) -> pd.DataFrame:
     if start_date > end_date:
@@ -183,20 +192,20 @@ class SessionValidationResult:
 
 def validate_intraday_by_session_calendar(
     df: pd.DataFrame,
-    calendar: str = "XNYS",
-    regular_start: str = "09:30",
-    regular_end: str = "16:00",
-    early_close_end: str = "13:00",
+    calendar: str = DEFAULT_MARKET_CALENDAR,
+    regular_start: str = DEFAULT_SESSION_START,
+    regular_end: str = DEFAULT_SESSION_END,
+    early_close_end: str = DEFAULT_EARLY_CLOSE_END,
     keep_official_early_closes: bool = True,
     drop_anomalous_partial_days: bool = True,
 ) -> SessionValidationResult:
-    if calendar.upper() != "XNYS":
+    if calendar.upper() != DEFAULT_MARKET_CALENDAR:
         raise ValueError(f"Unsupported session calendar '{calendar}'. Only XNYS is currently implemented.")
 
     if df.empty:
         empty_cov = pd.DataFrame(
             columns=[
-                "symbol",
+                COLUMN_SYMBOL,
                 "date",
                 "is_trading_day",
                 "is_official_early_close",
@@ -216,7 +225,7 @@ def validate_intraday_by_session_calendar(
             frame=df.copy(),
             coverage=empty_cov,
             summary={
-                "calendar": "XNYS",
+                "calendar": DEFAULT_MARKET_CALENDAR,
                 "rows_in": 0,
                 "rows_out": 0,
                 "symbols": 0,
@@ -382,7 +391,7 @@ def validate_intraday_by_session_calendar(
     cleaned = cleaned.drop(columns=["day", "minute_of_day"], errors="ignore")
 
     summary = {
-        "calendar": "XNYS",
+        "calendar": DEFAULT_MARKET_CALENDAR,
         "rows_in": int(len(df)),
         "rows_out": int(len(cleaned)),
         "symbols": int(df["symbol"].nunique()) if "symbol" in df.columns else 0,

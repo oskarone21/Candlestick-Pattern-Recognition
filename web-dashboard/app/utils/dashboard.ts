@@ -236,7 +236,7 @@ export function formatMoney(value: number | null | undefined) {
     signDisplay: "always",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(value);
+  }).format(value).replace("US$", "$");
 }
 
 export function formatDateTime(value: string) {

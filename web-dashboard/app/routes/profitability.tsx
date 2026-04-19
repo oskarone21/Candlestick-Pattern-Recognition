@@ -9,6 +9,7 @@ import {
   formatNumber,
   formatPercent,
   formatSignedCurrency,
+  hiddenPatterns,
   humanizePattern,
   mean,
   patternModelSeriesId,
@@ -16,6 +17,8 @@ import {
   sum,
   type BacktestPairRow,
   type CurveSeries,
+  visiblePatterns,
+  visiblePairRows as presentationPairRows,
 } from "../lib/dashboard";
 import type { DashboardOutletContext } from "../root";
 
@@ -114,20 +117,24 @@ function checkboxTone(active: boolean) {
 export default function ProfitabilityRoute() {
   const { snapshot } = useOutletContext<DashboardOutletContext>();
   const [scope, setScope] = useState<Scope>("champion");
+  const presentationPatterns = snapshot ? visiblePatterns(snapshot) : [];
   const [selectedModels, setSelectedModels] = useState<string[]>(snapshot?.meta.models ?? []);
-  const [selectedPatterns, setSelectedPatterns] = useState<string[]>(snapshot?.meta.patterns ?? []);
+  const [selectedPatterns, setSelectedPatterns] = useState<string[]>(presentationPatterns);
 
   if (!snapshot) {
     return null;
   }
 
+  const lowSupportHiddenPatterns = hiddenPatterns(snapshot);
   const championIds = championSeriesIds(snapshot);
-  const filteredPairRows = snapshot.backtest.pair_rows.filter(
+  const filteredPairRows = presentationPairRows(snapshot).filter(
     (row) => selectedModels.includes(row.model) && selectedPatterns.includes(row.pattern),
   );
   const filteredPairCurves = snapshot.backtest.pair_curves.filter(
     (curve) =>
-      selectedModels.includes(String(curve.model)) && selectedPatterns.includes(String(curve.pattern)),
+      presentationPatterns.includes(String(curve.pattern)) &&
+      selectedModels.includes(String(curve.model)) &&
+      selectedPatterns.includes(String(curve.pattern)),
   );
 
   const visiblePairRows =
@@ -166,6 +173,7 @@ export default function ProfitabilityRoute() {
   const averageSharpe = mean(visiblePairRows.map((row) => row.sharpe));
   const averageProfitFactor = mean(visiblePairRows.map((row) => row.profit_factor));
   const worstDrawdown = visiblePairRows.length ? Math.min(...visiblePairRows.map((row) => row.max_drawdown)) : 0;
+  const allVisiblePairsNegative = visiblePairRows.length > 0 && visiblePairRows.every((row) => row.total_pnl <= 0);
 
   function toggleValue(list: string[], value: string) {
     return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
@@ -174,9 +182,9 @@ export default function ProfitabilityRoute() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Profitability"
-        title="Step-by-step equity curves across champions, model-pattern pairs, and rollups by model family or pattern family."
-        description="Use the filters below to move from the clean champion view into the broader field, while keeping the rendered curves faithful to the underlying cumulative PnL."
+        eyebrow="Backtest Audit"
+        title="Backtest curves remain visible as an audit layer, while the main proposal story stays anchored in analyst productivity and validated detection quality."
+        description="Use the filters below to inspect backtest behaviour without letting a weak or sparse run dominate the product narrative."
         aside={
           <div className="grid gap-3 sm:grid-cols-2">
             <StatCard
@@ -194,6 +202,24 @@ export default function ProfitabilityRoute() {
           </div>
         }
       />
+
+      {allVisiblePairsNegative ? (
+        <SectionCard title="Audit warning" kicker="Negative Snapshot">
+          <p className="text-sm leading-6 text-slate-600">
+            Every visible pair in this snapshot is negative on backtest. That does not invalidate the analyst-use-case,
+            but it means profitability should be treated as an audit note, not as the primary headline.
+          </p>
+        </SectionCard>
+      ) : null}
+
+      {lowSupportHiddenPatterns.length > 0 ? (
+        <SectionCard title="Support gate" kicker="Hidden Patterns">
+          <p className="text-sm leading-6 text-slate-600">
+            Hidden from the backtest audit by default because validation or test support is too low:{" "}
+            {lowSupportHiddenPatterns.map((pattern) => humanizePattern(pattern)).join(", ")}.
+          </p>
+        </SectionCard>
+      ) : null}
 
       <SectionCard
         title="Profitability controls"
@@ -234,7 +260,7 @@ export default function ProfitabilityRoute() {
             <div>
               <p className="metric-label">Patterns</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {snapshot.meta.patterns.map((pattern) => (
+                {presentationPatterns.map((pattern) => (
                   <button
                     key={pattern}
                     type="button"

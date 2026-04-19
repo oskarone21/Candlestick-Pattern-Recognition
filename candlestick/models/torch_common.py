@@ -11,6 +11,20 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
+from candlestick.domain import (
+    CFG_PROJECT,
+    CFG_TRAINING,
+    DEFAULT_SEED,
+    EPSILON_COMPARE,
+)
+
+SEQUENCE_NORMALIZATION_TRAIN_ZSCORE = "train_zscore"
+SEQUENCE_NORMALIZATION_WINDOW_MINMAX = "window_minmax"
+VALID_SEQUENCE_NORMALIZATION_MODES = {
+    SEQUENCE_NORMALIZATION_TRAIN_ZSCORE,
+    SEQUENCE_NORMALIZATION_WINDOW_MINMAX,
+}
+
 
 class SequenceDataset(Dataset):
     def __init__(self, X: np.ndarray, y: np.ndarray | None = None):
@@ -95,14 +109,44 @@ def _set_seed(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
+def _resolve_sequence_normalization_mode(cfg: dict[str, Any]) -> str:
+    mode = str(cfg.get("model", {}).get("sequence_normalization_mode", SEQUENCE_NORMALIZATION_TRAIN_ZSCORE)).lower()
+    if mode not in VALID_SEQUENCE_NORMALIZATION_MODES:
+        supported = ", ".join(sorted(VALID_SEQUENCE_NORMALIZATION_MODES))
+        raise ValueError(f"Unsupported model.sequence_normalization_mode: {mode}. Expected one of: {supported}.")
+    return mode
+
+
 def _fit_normalization_stats(X_train: np.ndarray) -> dict[str, np.ndarray]:
     mean = np.mean(X_train, axis=(0, 1), keepdims=True).astype(np.float32)
     std = np.std(X_train, axis=(0, 1), keepdims=True).astype(np.float32)
-    std = np.where(std < 1.0e-6, 1.0, std).astype(np.float32)
+    std = np.where(std < EPSILON_COMPARE, 1.0, std).astype(np.float32)
     return {"mean": mean, "std": std}
 
 
-def _apply_normalization(X: np.ndarray, stats: dict[str, np.ndarray] | None) -> np.ndarray:
+def _apply_window_minmax_normalization(X: np.ndarray) -> np.ndarray:
+    X_arr = X.astype(np.float32, copy=False)
+    if X_arr.ndim < 2:
+        return X_arr
+
+    window_min = np.min(X_arr, axis=1, keepdims=True)
+    window_max = np.max(X_arr, axis=1, keepdims=True)
+    denom = np.where((window_max - window_min) < EPSILON_COMPARE, 1.0, window_max - window_min).astype(np.float32)
+    return ((X_arr - window_min) / denom).astype(np.float32, copy=False)
+
+
+def _apply_normalization(
+    X: np.ndarray,
+    stats: dict[str, np.ndarray] | None,
+    mode: str = SEQUENCE_NORMALIZATION_TRAIN_ZSCORE,
+) -> np.ndarray:
+    if mode == SEQUENCE_NORMALIZATION_WINDOW_MINMAX:
+        return _apply_window_minmax_normalization(X)
+
+    if mode != SEQUENCE_NORMALIZATION_TRAIN_ZSCORE:
+        supported = ", ".join(sorted(VALID_SEQUENCE_NORMALIZATION_MODES))
+        raise ValueError(f"Unsupported normalization mode: {mode}. Expected one of: {supported}.")
+
     if not stats:
         return X.astype(np.float32, copy=False)
     mean = np.asarray(stats["mean"], dtype=np.float32)
@@ -116,11 +160,12 @@ class TorchBinaryModel:
     model_name: str
     init_kwargs: dict[str, Any]
     device: torch.device
+    normalization_mode: str = SEQUENCE_NORMALIZATION_TRAIN_ZSCORE
     normalization_stats: dict[str, np.ndarray] | None = None
 
     def predict_proba(self, X: np.ndarray, batch_size: int = 512) -> np.ndarray:
         self.model.eval()
-        X_norm = _apply_normalization(X, self.normalization_stats)
+        X_norm = _apply_normalization(X, self.normalization_stats, mode=self.normalization_mode)
         ds = SequenceDataset(X_norm)
         pin_memory = self.device.type == "cuda"
         dl = DataLoader(ds, batch_size=batch_size, shuffle=False, pin_memory=pin_memory)
@@ -148,6 +193,7 @@ class TorchBinaryModel:
             "model_name": self.model_name,
             "init_kwargs": self.init_kwargs,
             "state_dict": self.model.state_dict(),
+            "normalization_mode": self.normalization_mode,
             "normalization_stats": {
                 "mean": self.normalization_stats["mean"],
                 "std": self.normalization_stats["std"],
@@ -188,9 +234,14 @@ def train_torch_binary(
     use_amp = bool(train_cfg.get("mixed_precision", False)) and device.type == "cuda"
     pin_memory = device.type == "cuda"
 
-    normalization_stats = _fit_normalization_stats(X_train)
-    X_train_norm = _apply_normalization(X_train, normalization_stats)
-    X_val_norm = _apply_normalization(X_val, normalization_stats)
+    normalization_mode = _resolve_sequence_normalization_mode(cfg)
+    normalization_stats = (
+        _fit_normalization_stats(X_train)
+        if normalization_mode == SEQUENCE_NORMALIZATION_TRAIN_ZSCORE
+        else None
+    )
+    X_train_norm = _apply_normalization(X_train, normalization_stats, mode=normalization_mode)
+    X_val_norm = _apply_normalization(X_val, normalization_stats, mode=normalization_mode)
 
     model = model_ctor(**init_kwargs).to(device)
 
@@ -284,15 +335,22 @@ def train_torch_binary(
         model_name=model_name,
         init_kwargs=init_kwargs,
         device=device,
+        normalization_mode=normalization_mode,
         normalization_stats=normalization_stats,
     )
 
 
 def load_torch_binary(path: str | Path, model_ctor: Callable[..., nn.Module], device: str = "cpu") -> TorchBinaryModel:
-    ckpt = torch.load(path, map_location=device)
+    ckpt = torch.load(path, map_location=device, weights_only=False)
     model = model_ctor(**ckpt["init_kwargs"])
     model.load_state_dict(ckpt["state_dict"])
     model.eval()
+    normalization_mode = str(ckpt.get("normalization_mode", SEQUENCE_NORMALIZATION_TRAIN_ZSCORE)).lower()
+    if normalization_mode not in VALID_SEQUENCE_NORMALIZATION_MODES:
+        supported = ", ".join(sorted(VALID_SEQUENCE_NORMALIZATION_MODES))
+        raise ValueError(
+            f"Unsupported normalization mode in checkpoint: {normalization_mode}. Expected one of: {supported}."
+        )
     normalization_stats = ckpt.get("normalization_stats")
     if normalization_stats is not None:
         normalization_stats = {
@@ -304,5 +362,6 @@ def load_torch_binary(path: str | Path, model_ctor: Callable[..., nn.Module], de
         model_name=ckpt["model_name"],
         init_kwargs=ckpt["init_kwargs"],
         device=torch.device(device),
+        normalization_mode=normalization_mode,
         normalization_stats=normalization_stats,
     )
