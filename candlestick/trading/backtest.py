@@ -15,6 +15,14 @@ from candlestick.domain import (
     COLUMN_LOW,
     COLUMN_OPEN,
     COLUMN_TS_EVENT,
+    COLUMN_PROBA,
+    COLUMN_PATTERN,
+    COLUMN_DIRECTION,
+    COLUMN_LABEL,
+    COLUMN_WINDOW_END_IDX,
+    COLUMN_WINDOW_END_TS,
+    EPSILON_COMPARE,
+    EPSILON_SAFE_DIVIDE,
     ExitReason,
     TradeDirection,
     UNKNOWN_PATTERN,
@@ -255,11 +263,11 @@ def run_backtest_for_predictions(
     open_positions: list[dict[str, Any]] = []
     max_simultaneous = 0
 
-    signals = pred_df[pred_df["proba"] >= threshold].copy()
-    signals = signals.sort_values(["window_end_idx", "proba"], ascending=[True, False])
+    signals = pred_df[pred_df[COLUMN_PROBA] >= threshold].copy()
+    signals = signals.sort_values([COLUMN_WINDOW_END_IDX, COLUMN_PROBA], ascending=[True, False])
 
     for _, row in signals.iterrows():
-        anchor = int(row["window_end_idx"])
+        anchor = int(row[COLUMN_WINDOW_END_IDX])
         entry_idx = anchor + 1
         if entry_idx >= len(px):
             rejected[REJECT_NO_FUTURE_BAR] += 1
@@ -267,19 +275,19 @@ def run_backtest_for_predictions(
 
         open_positions = [position for position in open_positions if int(position["exit_idx"]) >= entry_idx]
 
-        pattern = str(row.get("pattern", UNKNOWN_PATTERN))
-        if not allow_same_pattern_overlap and any(position["pattern"] == pattern for position in open_positions):
+        pattern = str(row.get(COLUMN_PATTERN, UNKNOWN_PATTERN))
+        if not allow_same_pattern_overlap and any(position[COLUMN_PATTERN] == pattern for position in open_positions):
             rejected[REJECT_SAME_PATTERN_OVERLAP] += 1
             continue
         if len(open_positions) >= max_open_positions:
             rejected[REJECT_MAX_OPEN_POSITIONS] += 1
             continue
 
-        direction = _coerce_direction(row["direction"])
+        direction = _coerce_direction(row[COLUMN_DIRECTION])
         sign = 1.0 if direction is TradeDirection.LONG else -1.0
         entry_ts = px.iloc[entry_idx][COLUMN_TS_EVENT]
         entry_price = float(px.iloc[entry_idx][COLUMN_OPEN])
-        atr_value = max(_atr(px, entry_idx), 1.0e-6)
+        atr_value = max(_atr(px, entry_idx), EPSILON_COMPARE)
         default_stop = entry_price - atr_value if direction is TradeDirection.LONG else entry_price + atr_value
         supplied_stop = row.get("stop_price")
         if supplied_stop is None or pd.isna(supplied_stop):

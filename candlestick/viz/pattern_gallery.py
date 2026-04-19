@@ -6,7 +6,21 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from candlestick.config import ensure_dir
-from candlestick.domain import GALLERY_BUCKET_FN, GALLERY_BUCKET_FP, GALLERY_BUCKET_TP
+from candlestick.domain import (
+    COLUMN_CLOSE,
+    COLUMN_HIGH,
+    COLUMN_LOW,
+    COLUMN_OPEN,
+    COLUMN_PROBA,
+    COLUMN_LABEL,
+    COLUMN_TS_EVENT,
+    COLUMN_VOLUME,
+    COLUMN_WINDOW_END_IDX,
+    COLUMN_WINDOW_END_TS,
+    GALLERY_BUCKET_FN,
+    GALLERY_BUCKET_FP,
+    GALLERY_BUCKET_TP,
+)
 
 
 def _plot_window(

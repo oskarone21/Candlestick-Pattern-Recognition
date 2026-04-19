@@ -5,6 +5,14 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from candlestick.domain import (
+    COLUMN_SPLIT,
+    COLUMN_WINDOW_END_IDX,
+    COLUMN_WINDOW_END_TS,
+    EPSILON_COMPARE,
+    SplitName,
+)
+
 
 @dataclass
 class SplitIndex:
@@ -29,7 +37,7 @@ def _purge_before_boundary(
 ) -> np.ndarray:
     if len(idx) == 0:
         return idx
-    bars = pd.to_numeric(meta.loc[idx, "window_end_idx"], errors="coerce")
+    bars = pd.to_numeric(meta.loc[idx, COLUMN_WINDOW_END_IDX], errors="coerce")
     keep = (bars <= (boundary_bar - embargo_bars)).fillna(False).to_numpy()
     return idx[keep]
 
@@ -42,7 +50,7 @@ def _purge_after_boundary(
 ) -> np.ndarray:
     if len(idx) == 0:
         return idx
-    bars = pd.to_numeric(meta.loc[idx, "window_end_idx"], errors="coerce")
+    bars = pd.to_numeric(meta.loc[idx, COLUMN_WINDOW_END_IDX], errors="coerce")
     keep = (bars >= (boundary_bar + embargo_bars)).fillna(False).to_numpy()
     return idx[keep]
 
@@ -59,11 +67,11 @@ def time_based_split(
         empty = np.array([], dtype=int)
         return SplitIndex(train=empty, val=empty, test=empty)
 
-    if abs((train_ratio + val_ratio + test_ratio) - 1.0) > 1.0e-6:
+    if abs((train_ratio + val_ratio + test_ratio) - 1.0) > EPSILON_COMPARE:
         raise ValueError("train_ratio + val_ratio + test_ratio must sum to 1.0")
 
     meta_sorted = meta.copy()
-    meta_sorted["_tmp_ts"] = pd.to_datetime(meta_sorted["window_end_ts"], errors="coerce", utc=True)
+    meta_sorted["_tmp_ts"] = pd.to_datetime(meta_sorted[COLUMN_WINDOW_END_TS], errors="coerce", utc=True)
     meta_sorted = meta_sorted.dropna(subset=["_tmp_ts"])
     if meta_sorted.empty:
         empty = np.array([], dtype=int)
@@ -81,13 +89,13 @@ def time_based_split(
 
     if embargo_bars > 0:
         # Prefer bar-distance purge using window_end_idx (bars), not sample counts.
-        if "window_end_idx" in meta.columns:
+        if COLUMN_WINDOW_END_IDX in meta.columns:
             val_start_bar = None
             if len(val_idx) > 0:
-                val_start_bar = pd.to_numeric(meta.loc[val_idx[0], "window_end_idx"], errors="coerce")
+                val_start_bar = pd.to_numeric(meta.loc[val_idx[0], COLUMN_WINDOW_END_IDX], errors="coerce")
             test_start_bar = None
             if len(test_idx) > 0:
-                test_start_bar = pd.to_numeric(meta.loc[test_idx[0], "window_end_idx"], errors="coerce")
+                test_start_bar = pd.to_numeric(meta.loc[test_idx[0], COLUMN_WINDOW_END_IDX], errors="coerce")
 
             if val_start_bar is not None and not pd.isna(val_start_bar):
                 train_idx = _purge_before_boundary(meta, train_idx, float(val_start_bar), embargo_bars)
@@ -111,8 +119,8 @@ def time_based_split(
 
 def assign_split_column(meta: pd.DataFrame, split: SplitIndex) -> pd.DataFrame:
     out = meta.copy()
-    out["split"] = "unused"
-    out.loc[split.train, "split"] = "train"
-    out.loc[split.val, "split"] = "val"
-    out.loc[split.test, "split"] = "test"
+    out[COLUMN_SPLIT] = SplitName.UNUSED.value
+    out.loc[split.train, COLUMN_SPLIT] = SplitName.TRAIN.value
+    out.loc[split.val, COLUMN_SPLIT] = SplitName.VAL.value
+    out.loc[split.test, COLUMN_SPLIT] = SplitName.TEST.value
     return out

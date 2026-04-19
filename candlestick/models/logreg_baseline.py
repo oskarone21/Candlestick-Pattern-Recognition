@@ -9,7 +9,10 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 
-def build_logreg_model(seed: int = 42, params: dict[str, Any] | None = None) -> Pipeline:
+from candlestick.domain import DEFAULT_SEED
+
+
+def build_logreg_model(seed: int = DEFAULT_SEED, params: dict[str, Any] | None = None) -> Pipeline:
     params = params or {}
     clf = LogisticRegression(
         random_state=seed,

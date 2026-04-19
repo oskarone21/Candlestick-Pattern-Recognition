@@ -6,12 +6,25 @@ from typing import Any
 import pandas as pd
 
 from candlestick.domain import (
+    CFG_CONFIRMATION,
+    CFG_GEOMETRY,
+    CFG_LABELING,
+    CFG_VOLUME_RULES,
+    COLUMN_ANCHOR_IDX,
     COLUMN_CLOSE,
     COLUMN_HIGH,
     COLUMN_LOW,
     COLUMN_SYMBOL,
     COLUMN_TS_EVENT,
     COLUMN_VOLUME,
+    DEFAULT_BREAKOUT_CONFIRMATION_PCT,
+    DEFAULT_BREAKOUT_VOLUME_AVERAGE_BARS,
+    DEFAULT_BREAKOUT_VOLUME_MIN_MULTIPLIER,
+    DEFAULT_CONFIRM_BREAK_WITHIN_BARS,
+    DEFAULT_POS_NEG_RATIO,
+    DEFAULT_SHOULDER_TOLERANCE_PCT,
+    EPSILON_SAFE_DIVIDE,
+    ExtremumKind,
     PatternEventReason,
     PatternName,
     TradeDirection,
@@ -68,7 +81,7 @@ PATTERN_SPECS: dict[PatternName, PatternSpec] = {
 
 
 def _relative_diff(a: float, b: float) -> float:
-    denom = max((abs(a) + abs(b)) / 2.0, 1.0e-12)
+    denom = max((abs(a) + abs(b)) / 2.0, EPSILON_SAFE_DIVIDE)
     return abs(a - b) / denom
 
 
@@ -93,7 +106,7 @@ def _atr(df: pd.DataFrame, idx: int, period: int = 14) -> float:
         axis=1,
     ).max(axis=1)
     value = float(tr.mean()) if not tr.empty else float(df.iloc[idx][COLUMN_HIGH] - df.iloc[idx][COLUMN_LOW])
-    return max(value, 1.0e-8)
+    return max(value, EPSILON_SAFE_DIVIDE)
 
 
 def _find_breakout(
@@ -147,7 +160,7 @@ def _event(
         ts_event=df.iloc[anchor_idx][COLUMN_TS_EVENT],
         direction=direction.value,
         neckline=float(neckline),
-        pattern_height=float(max(height, 1.0e-8)),
+        pattern_height=float(max(height, EPSILON_SAFE_DIVIDE)),
         stop_price=float(stop_price),
         target_price=float(target),
     )

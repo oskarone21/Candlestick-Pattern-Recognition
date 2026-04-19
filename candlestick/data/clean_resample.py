@@ -13,8 +13,12 @@ from candlestick.domain import (
     COLUMN_SYMBOL,
     COLUMN_TS_EVENT,
     COLUMN_VOLUME,
+    CFG_DATA_SOURCE,
+    CFG_SESSION,
+    DEFAULT_BASE_TIMEFRAME,
     DEFAULT_SESSION_END,
     DEFAULT_SESSION_START,
+    DEFAULT_TARGET_TIMEFRAME,
 )
 from candlestick.project_utils import timeframe_to_minutes
 

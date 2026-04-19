@@ -11,6 +11,13 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
+from candlestick.domain import (
+    CFG_PROJECT,
+    CFG_TRAINING,
+    DEFAULT_SEED,
+    EPSILON_COMPARE,
+)
+
 SEQUENCE_NORMALIZATION_TRAIN_ZSCORE = "train_zscore"
 SEQUENCE_NORMALIZATION_WINDOW_MINMAX = "window_minmax"
 VALID_SEQUENCE_NORMALIZATION_MODES = {
@@ -113,7 +120,7 @@ def _resolve_sequence_normalization_mode(cfg: dict[str, Any]) -> str:
 def _fit_normalization_stats(X_train: np.ndarray) -> dict[str, np.ndarray]:
     mean = np.mean(X_train, axis=(0, 1), keepdims=True).astype(np.float32)
     std = np.std(X_train, axis=(0, 1), keepdims=True).astype(np.float32)
-    std = np.where(std < 1.0e-6, 1.0, std).astype(np.float32)
+    std = np.where(std < EPSILON_COMPARE, 1.0, std).astype(np.float32)
     return {"mean": mean, "std": std}
 
 
@@ -124,7 +131,7 @@ def _apply_window_minmax_normalization(X: np.ndarray) -> np.ndarray:
 
     window_min = np.min(X_arr, axis=1, keepdims=True)
     window_max = np.max(X_arr, axis=1, keepdims=True)
-    denom = np.where((window_max - window_min) < 1.0e-6, 1.0, window_max - window_min).astype(np.float32)
+    denom = np.where((window_max - window_min) < EPSILON_COMPARE, 1.0, window_max - window_min).astype(np.float32)
     return ((X_arr - window_min) / denom).astype(np.float32, copy=False)
 
 

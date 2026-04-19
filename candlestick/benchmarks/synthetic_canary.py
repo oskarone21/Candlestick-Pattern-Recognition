@@ -12,6 +12,9 @@ from candlestick.domain import (
     COLUMN_LOW,
     COLUMN_OPEN,
     COLUMN_VOLUME,
+    COLUMN_LABEL,
+    COLUMN_PATTERN,
+    DEFAULT_SEED,
     PatternName,
 )
 

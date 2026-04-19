@@ -7,19 +7,28 @@ import pandas as pd
 
 from candlestick.config import ensure_dir
 from candlestick.domain import (
+    COLUMN_CLOSE,
+    COLUMN_HIGH,
+    COLUMN_LOW,
+    COLUMN_OPEN,
     COLUMN_SYMBOL,
     COLUMN_TS_EVENT,
+    COLUMN_VOLUME,
+    CFG_COLUMNS,
+    CFG_DATA_SOURCE,
+    CFG_INSTRUMENT,
+    CFG_TIMESTAMP,
     DEFAULT_INSTRUMENT,
 )
 
 DEFAULT_COLUMN_ALIASES: dict[str, list[str]] = {
-    "ts_event": ["ts_event", "timestamp", "date", "datetime", "time"],
-    "symbol": ["symbol", "ticker", "instrument"],
-    "open": ["open", "Open"],
-    "high": ["high", "High"],
-    "low": ["low", "Low"],
-    "close": ["close", "Close"],
-    "volume": ["volume", "Volume"],
+    COLUMN_TS_EVENT: ["ts_event", "timestamp", "date", "datetime", "time"],
+    COLUMN_SYMBOL: ["symbol", "ticker", "instrument"],
+    COLUMN_OPEN: ["open", "Open"],
+    COLUMN_HIGH: ["high", "High"],
+    COLUMN_LOW: ["low", "Low"],
+    COLUMN_CLOSE: ["close", "Close"],
+    COLUMN_VOLUME: ["volume", "Volume"],
 }
 
 
@@ -74,8 +83,8 @@ def _column_lookup(df: pd.DataFrame, preferred_name: str | None, aliases: list[s
 
 def normalize_intraday_schema(df: pd.DataFrame, cfg: dict[str, Any]) -> pd.DataFrame:
     """Normalize raw dataset columns to project-standard schema."""
-    timestamp_cfg = cfg["data_source"].get("timestamp", {})
-    col_cfg = cfg["data_source"].get("columns", {})
+    timestamp_cfg = cfg[CFG_DATA_SOURCE].get(CFG_TIMESTAMP, {})
+    col_cfg = cfg[CFG_DATA_SOURCE].get(CFG_COLUMNS, {})
 
     rename_map: dict[str, str] = {}
     for canonical, aliases in DEFAULT_COLUMN_ALIASES.items():
@@ -98,7 +107,7 @@ def normalize_intraday_schema(df: pd.DataFrame, cfg: dict[str, Any]) -> pd.DataF
     if COLUMN_SYMBOL not in normalized.columns:
         normalized[COLUMN_SYMBOL] = cfg["data_source"].get("instrument", DEFAULT_INSTRUMENT)
 
-    keep_cols = ["symbol", "ts_event", "open", "high", "low", "close", "volume"]
+    keep_cols = [COLUMN_SYMBOL, COLUMN_TS_EVENT, COLUMN_OPEN, COLUMN_HIGH, COLUMN_LOW, COLUMN_CLOSE, COLUMN_VOLUME]
     extra_cols = [c for c in ["barCount", "barcount", "average", "avg"] if c in normalized.columns]
     normalized = normalized[keep_cols + extra_cols]
 
@@ -123,7 +132,7 @@ def load_kaggle_dataframe(cfg: dict[str, Any]) -> pd.DataFrame:
             "kagglehub is not installed. Install it with `pip install kagglehub[pandas-datasets]`."
         ) from exc
 
-    data_cfg = cfg["data_source"]
+    data_cfg = cfg[CFG_DATA_SOURCE]
     dataset_handle = data_cfg.get("kaggle_dataset")
     if not dataset_handle:
         raise IngestError("Missing data_source.kaggle_dataset in config.")

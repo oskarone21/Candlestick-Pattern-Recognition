@@ -16,6 +16,9 @@ from sklearn.metrics import (
 )
 
 from candlestick.domain import (
+    DEFAULT_BOOTSTRAP_ITERATIONS,
+    DEFAULT_SEED,
+    DEFAULT_THRESHOLD_GRID_SIZE,
     METRIC_F1,
     METRIC_F2,
     METRIC_PRECISION,
@@ -64,7 +67,7 @@ def metric_value(metrics: dict, metric: str) -> float:
 def threshold_grid(
     y_true: np.ndarray,
     y_prob: np.ndarray,
-    grid_size: int = 181,
+    grid_size: int = DEFAULT_THRESHOLD_GRID_SIZE,
 ) -> list[dict]:
     thresholds = np.linspace(0.05, 0.95, grid_size)
     return [evaluate_threshold_metrics(y_true, y_prob, threshold=float(t)) for t in thresholds]

@@ -8,6 +8,8 @@ import pandas as pd
 from pandas import DatetimeTZDtype
 
 from candlestick.domain import (
+    COLUMN_SYMBOL,
+    COLUMN_TS_EVENT,
     DEFAULT_EARLY_CLOSE_END,
     DEFAULT_MARKET_CALENDAR,
     DEFAULT_SESSION_END,
@@ -203,7 +205,7 @@ def validate_intraday_by_session_calendar(
     if df.empty:
         empty_cov = pd.DataFrame(
             columns=[
-                "symbol",
+                COLUMN_SYMBOL,
                 "date",
                 "is_trading_day",
                 "is_official_early_close",
