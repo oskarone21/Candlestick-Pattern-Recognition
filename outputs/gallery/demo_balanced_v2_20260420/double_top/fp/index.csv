@@ -1,0 +1,12 @@
+file,window_end_idx,window_end_ts,proba,label,y_pred
+outputs\gallery\demo_balanced_v2_20260420\double_top\fp\double_top_fp_29.png,70555,2018-11-16 16:00:00-05:00,0.726478745823144,0,1
+outputs\gallery\demo_balanced_v2_20260420\double_top\fp\double_top_fp_32.png,70635,2018-11-23 10:00:00-05:00,0.4552014383106693,0,1
+outputs\gallery\demo_balanced_v2_20260420\double_top\fp\double_top_fp_44.png,71054,2018-12-18 13:45:00-05:00,0.5144405839392676,0,1
+outputs\gallery\demo_balanced_v2_20260420\double_top\fp\double_top_fp_138.png,74135,2019-06-11 13:30:00-04:00,0.5828366145474041,0,1
+outputs\gallery\demo_balanced_v2_20260420\double_top\fp\double_top_fp_210.png,76570,2019-10-23 14:15:00-04:00,0.3336494848231744,0,1
+outputs\gallery\demo_balanced_v2_20260420\double_top\fp\double_top_fp_217.png,76890,2019-11-11 09:45:00-05:00,0.3644279758828662,0,1
+outputs\gallery\demo_balanced_v2_20260420\double_top\fp\double_top_fp_223.png,77131,2019-11-22 11:30:00-05:00,0.3308519330884554,0,1
+outputs\gallery\demo_balanced_v2_20260420\double_top\fp\double_top_fp_227.png,77328,2019-12-05 11:45:00-05:00,0.3163848738390808,0,1
+outputs\gallery\demo_balanced_v2_20260420\double_top\fp\double_top_fp_241.png,77827,2020-01-03 16:00:00-05:00,0.8354666789449804,0,1
+outputs\gallery\demo_balanced_v2_20260420\double_top\fp\double_top_fp_387.png,82741,2020-10-02 16:00:00-04:00,0.4709315111394359,0,1
+outputs\gallery\demo_balanced_v2_20260420\double_top\fp\double_top_fp_449.png,85081,2021-02-16 16:00:00-05:00,0.3419114515726298,0,1

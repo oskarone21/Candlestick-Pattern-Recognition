@@ -26,15 +26,20 @@ const builderDependencies = [
 type RequiredSources = {
   metricsSummary: string;
   champions: string;
+};
+
+type OptionalSources = {
   backtestSummary: string;
   gallerySummary: string;
 };
+
+type RunSources = RequiredSources & OptionalSources;
 
 function toPosixRelative(absolutePath: string) {
   return path.relative(repoRoot, absolutePath).split(path.sep).join("/");
 }
 
-function sourcePathsForRun(runName: string): RequiredSources {
+function sourcePathsForRun(runName: string): RunSources {
   return {
     metricsSummary: path.join(metricsRoot, runName, "model_comparison_summary.csv"),
     champions: path.join(metricsRoot, runName, "champions.csv"),
@@ -72,7 +77,7 @@ async function listFinishedRuns(): Promise<LatestFinishedRun[]> {
 
     const runName = entry.name;
     const sources = sourcePathsForRun(runName);
-    const requiredFiles = Object.values(sources);
+    const requiredFiles = [sources.metricsSummary, sources.champions];
     const allPresent = await Promise.all(requiredFiles.map(pathExists));
     if (allPresent.some((present) => !present)) {
       continue;
@@ -95,6 +100,11 @@ async function listFinishedRuns(): Promise<LatestFinishedRun[]> {
   return candidates;
 }
 
+async function findFinishedRunByName(runName: string): Promise<LatestFinishedRun | null> {
+  const runs = await listFinishedRuns();
+  return runs.find((run) => run.runName === runName) ?? null;
+}
+
 export async function findLatestFinishedRun(): Promise<LatestFinishedRun | null> {
   const runs = await listFinishedRuns();
   return runs[0] ?? null;
@@ -103,7 +113,13 @@ export async function findLatestFinishedRun(): Promise<LatestFinishedRun | null>
 export async function ensureDashboardSnapshot(runName: string, configPath = defaultConfigPath) {
   const snapshotDir = path.join(generatedRoot, runName);
   const snapshotPath = path.join(snapshotDir, "data.json");
-  const sourcePaths = [...Object.values(sourcePathsForRun(runName)), ...builderDependencies, configPath];
+  const sources = sourcePathsForRun(runName);
+  const optionalSourcePaths = (
+    await Promise.all([sources.backtestSummary, sources.gallerySummary].map(async (filePath) => (
+      (await pathExists(filePath)) ? filePath : null
+    )))
+  ).filter((filePath): filePath is string => Boolean(filePath));
+  const sourcePaths = [sources.metricsSummary, sources.champions, ...optionalSourcePaths, ...builderDependencies, configPath];
   const snapshotExists = await pathExists(snapshotPath);
   const latestSourceMtime = await latestSourceMtimeMs(sourcePaths);
 
@@ -135,45 +151,18 @@ export async function ensureDashboardSnapshot(runName: string, configPath = defa
 }
 
 export async function loadLatestDashboardSnapshot() {
-  const finishedRuns = await listFinishedRuns();
-  const latestRun = finishedRuns[0] ?? null;
-  if (!latestRun) {
+  const pinnedRunName = process.env.DASHBOARD_RUN_NAME?.trim();
+  const selectedRun = pinnedRunName
+    ? await findFinishedRunByName(pinnedRunName)
+    : await findLatestFinishedRun();
+
+  if (!selectedRun) {
     return { latestRun: null, snapshot: null as DashboardSnapshot | null };
   }
 
-  const candidates: Array<{ run: LatestFinishedRun; snapshot: DashboardSnapshot }> = [];
-  for (const run of finishedRuns) {
-    const snapshotPath = await ensureDashboardSnapshot(run.runName);
-    const snapshot = JSON.parse(await fs.readFile(snapshotPath, "utf8")) as DashboardSnapshot;
-    candidates.push({ run, snapshot });
-  }
-
-  const eligible = candidates
-    .filter(({ snapshot }) => snapshot.presentation?.presentation_eligible)
-    .sort((left, right) => {
-      const leftVisible = left.snapshot.presentation?.visible_patterns?.length ?? 0;
-      const rightVisible = right.snapshot.presentation?.visible_patterns?.length ?? 0;
-      if (rightVisible !== leftVisible) {
-        return rightVisible - leftVisible;
-      }
-
-      const leftF1 = left.snapshot.presentation?.mean_visible_champion_f1 ?? 0;
-      const rightF1 = right.snapshot.presentation?.mean_visible_champion_f1 ?? 0;
-      if (rightF1 !== leftF1) {
-        return rightF1 - leftF1;
-      }
-
-      const leftPrAuc = left.snapshot.presentation?.mean_visible_champion_pr_auc ?? 0;
-      const rightPrAuc = right.snapshot.presentation?.mean_visible_champion_pr_auc ?? 0;
-      if (rightPrAuc !== leftPrAuc) {
-        return rightPrAuc - leftPrAuc;
-      }
-
-      return Date.parse(right.run.modifiedAt) - Date.parse(left.run.modifiedAt);
-    });
-
-  const selected = eligible[0] ?? candidates[0];
-  return { latestRun, snapshot: selected.snapshot };
+  const snapshotPath = await ensureDashboardSnapshot(selectedRun.runName);
+  const snapshot = JSON.parse(await fs.readFile(snapshotPath, "utf8")) as DashboardSnapshot;
+  return { latestRun: selectedRun, snapshot };
 }
 
 export async function readGalleryAsset(src: string) {

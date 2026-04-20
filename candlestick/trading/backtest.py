@@ -74,7 +74,10 @@ class BacktestSummary(TypedDict):
 def _atr(df: pd.DataFrame, idx: int, period: int = 14) -> float:
     start = max(1, idx - period + 1)
     window = df.iloc[start : idx + 1]
-    prev_close = df[COLUMN_CLOSE].shift(1).iloc[start : idx + 1]
+    
+    # Avoid shifting the entire dataframe which is O(N) inside a loop
+    prev_close = df[COLUMN_CLOSE].iloc[start - 1 : idx].values
+
     tr = pd.concat(
         [
             window[COLUMN_HIGH] - window[COLUMN_LOW],
@@ -287,7 +290,7 @@ def run_backtest_for_predictions(
         sign = 1.0 if direction is TradeDirection.LONG else -1.0
         entry_ts = px.iloc[entry_idx][COLUMN_TS_EVENT]
         entry_price = float(px.iloc[entry_idx][COLUMN_OPEN])
-        atr_value = max(_atr(px, entry_idx), EPSILON_COMPARE)
+        atr_value = max(_atr(px, max(1, entry_idx - 1)), EPSILON_COMPARE)
         default_stop = entry_price - atr_value if direction is TradeDirection.LONG else entry_price + atr_value
         supplied_stop = row.get("stop_price")
         if supplied_stop is None or pd.isna(supplied_stop):

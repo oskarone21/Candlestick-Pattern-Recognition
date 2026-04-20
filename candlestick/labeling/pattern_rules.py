@@ -166,6 +166,32 @@ def _event(
     )
 
 
+def _event_anchor_idx(
+    cfg: dict[str, Any],
+    pattern_completion_idx: int,
+    last_idx: int,
+    breakout_idx: int | None = None,
+) -> int:
+    policy_cfg = cfg.get("labeling", {}).get("labeling_policy", {})
+    mode = str(policy_cfg.get("window_anchor", "breakout_bar")).lower()
+    if mode == "breakout_bar":
+        return breakout_idx if breakout_idx is not None else pattern_completion_idx
+    if mode == "pattern_completion_bar":
+        return pattern_completion_idx
+    if mode == "post_completion_bar":
+        offset = max(int(policy_cfg.get("post_completion_offset_bars", 0)), 0)
+        prebreak_gap = max(int(policy_cfg.get("minimum_prebreak_gap_bars", 1)), 0)
+        anchor_idx = min(pattern_completion_idx + offset, last_idx)
+        if breakout_idx is None:
+            return anchor_idx
+        latest_safe_idx = max(pattern_completion_idx, breakout_idx - prebreak_gap)
+        return min(anchor_idx, latest_safe_idx)
+    raise ValueError(
+        f"Unsupported labeling.labeling_policy.window_anchor: {mode}. "
+        "Expected one of: breakout_bar, pattern_completion_bar, post_completion_bar."
+    )
+
+
 def _detect_head_shoulders_like(
     df: pd.DataFrame,
     extrema: list[Extremum],
@@ -226,7 +252,11 @@ def _detect_head_shoulders_like(
                         pattern=spec.name,
                         label=0,
                         reason=PatternEventReason.NEAR_MISS,
-                        anchor_idx=e5.idx,
+                        anchor_idx=_event_anchor_idx(
+                            cfg,
+                            pattern_completion_idx=e5.idx,
+                            last_idx=len(df) - 1,
+                        ),
                         breakout_idx=None,
                         direction=spec.direction,
                         neckline=e4.price,
@@ -270,7 +300,12 @@ def _detect_head_shoulders_like(
                     pattern=spec.name,
                     label=1,
                     reason=PatternEventReason.CONFIRMED_BREAKOUT,
-                    anchor_idx=breakout_idx,
+                    anchor_idx=_event_anchor_idx(
+                        cfg,
+                        pattern_completion_idx=e5.idx,
+                        breakout_idx=breakout_idx,
+                        last_idx=len(df) - 1,
+                    ),
                     breakout_idx=breakout_idx,
                     direction=spec.direction,
                     neckline=neckline_fn(breakout_idx),
@@ -287,7 +322,11 @@ def _detect_head_shoulders_like(
                 pattern=spec.name,
                 label=0,
                 reason=PatternEventReason.FAILED_BREAKOUT,
-                anchor_idx=e5.idx,
+                anchor_idx=_event_anchor_idx(
+                    cfg,
+                    pattern_completion_idx=e5.idx,
+                    last_idx=len(df) - 1,
+                ),
                 breakout_idx=None,
                 direction=spec.direction,
                 neckline=neckline_fn(e5.idx),
@@ -361,7 +400,11 @@ def _detect_double_like(
                         pattern=spec.name,
                         label=0,
                         reason=PatternEventReason.NEAR_MISS,
-                        anchor_idx=e3.idx,
+                        anchor_idx=_event_anchor_idx(
+                            cfg,
+                            pattern_completion_idx=e3.idx,
+                            last_idx=len(df) - 1,
+                        ),
                         breakout_idx=None,
                         direction=spec.direction,
                         neckline=e2.price,
@@ -402,7 +445,12 @@ def _detect_double_like(
                     pattern=spec.name,
                     label=1,
                     reason=PatternEventReason.CONFIRMED_BREAKOUT,
-                    anchor_idx=breakout_idx,
+                    anchor_idx=_event_anchor_idx(
+                        cfg,
+                        pattern_completion_idx=e3.idx,
+                        breakout_idx=breakout_idx,
+                        last_idx=len(df) - 1,
+                    ),
                     breakout_idx=breakout_idx,
                     direction=spec.direction,
                     neckline=neckline_price,
@@ -419,7 +467,11 @@ def _detect_double_like(
                 pattern=spec.name,
                 label=0,
                 reason=PatternEventReason.FAILED_BREAKOUT,
-                anchor_idx=e3.idx,
+                anchor_idx=_event_anchor_idx(
+                    cfg,
+                    pattern_completion_idx=e3.idx,
+                    last_idx=len(df) - 1,
+                ),
                 breakout_idx=None,
                 direction=spec.direction,
                 neckline=neckline_price,

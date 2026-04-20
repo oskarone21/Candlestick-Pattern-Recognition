@@ -1,0 +1,266 @@
+{
+  "run_name": "demo_balanced_v2_20260420",
+  "smoke": false,
+  "prebuilt_datasets_dir": null,
+  "processed_price_summary": {
+    "available": true,
+    "row_count": 86538,
+    "symbol_count": 1,
+    "symbols": [
+      "SPY"
+    ],
+    "first_ts": "2008-01-22T14:45:00+00:00",
+    "last_ts": "2021-05-06T20:00:00+00:00",
+    "trading_day_count": 3339,
+    "bars_per_day_distribution": {
+      "14": 23,
+      "26": 3316
+    }
+  },
+  "patterns": {
+    "head_shoulders": {
+      "pattern": "head_shoulders",
+      "source": "live_generated",
+      "event_summary": {
+        "pattern": "head_shoulders",
+        "source": "live_generated",
+        "available": true,
+        "event_count": 965,
+        "positive_events": 193,
+        "negative_events": 772,
+        "reason_counts": {
+          "near_miss": 6,
+          "confirmed_breakout": 193,
+          "failed_breakout": 287,
+          "partial": 479
+        }
+      },
+      "dataset_summary": {
+        "pattern": "head_shoulders",
+        "source": "live_generated",
+        "available": true,
+        "samples": 963,
+        "positive_labels": 193,
+        "negative_labels": 770,
+        "sequence_length": 80,
+        "feature_count": 5,
+        "metadata_rows": 963,
+        "first_window_end_ts": "2008-01-25 10:45:00-05:00",
+        "last_window_end_ts": "2021-05-06 10:30:00-04:00"
+      },
+      "split_summary": {
+        "available": true,
+        "folds": {
+          "train": {
+            "samples": 577,
+            "positive": 58,
+            "negative": 519
+          },
+          "val": {
+            "samples": 192,
+            "positive": 64,
+            "negative": 128
+          },
+          "test": {
+            "samples": 192,
+            "positive": 71,
+            "negative": 121
+          },
+          "metadata_split_rows": {
+            "test": 192,
+            "train": 577,
+            "unused": 2,
+            "val": 192
+          }
+        }
+      },
+      "split_error": null,
+      "warnings": [],
+      "fatal": false,
+      "fatal_message": null
+    },
+    "inverse_head_shoulders": {
+      "pattern": "inverse_head_shoulders",
+      "source": "live_generated",
+      "event_summary": {
+        "pattern": "inverse_head_shoulders",
+        "source": "live_generated",
+        "available": true,
+        "event_count": 905,
+        "positive_events": 181,
+        "negative_events": 724,
+        "reason_counts": {
+          "near_miss": 13,
+          "confirmed_breakout": 181,
+          "failed_breakout": 273,
+          "partial": 438
+        }
+      },
+      "dataset_summary": {
+        "pattern": "inverse_head_shoulders",
+        "source": "live_generated",
+        "available": true,
+        "samples": 903,
+        "positive_labels": 181,
+        "negative_labels": 722,
+        "sequence_length": 80,
+        "feature_count": 5,
+        "metadata_rows": 903,
+        "first_window_end_ts": "2008-01-25 10:45:00-05:00",
+        "last_window_end_ts": "2021-05-06 13:45:00-04:00"
+      },
+      "split_summary": {
+        "available": true,
+        "folds": {
+          "train": {
+            "samples": 541,
+            "positive": 49,
+            "negative": 492
+          },
+          "val": {
+            "samples": 180,
+            "positive": 74,
+            "negative": 106
+          },
+          "test": {
+            "samples": 180,
+            "positive": 57,
+            "negative": 123
+          },
+          "metadata_split_rows": {
+            "test": 180,
+            "train": 541,
+            "unused": 2,
+            "val": 180
+          }
+        }
+      },
+      "split_error": null,
+      "warnings": [],
+      "fatal": false,
+      "fatal_message": null
+    },
+    "double_top": {
+      "pattern": "double_top",
+      "source": "live_generated",
+      "event_summary": {
+        "pattern": "double_top",
+        "source": "live_generated",
+        "available": true,
+        "event_count": 2459,
+        "positive_events": 323,
+        "negative_events": 2136,
+        "reason_counts": {
+          "near_miss": 1428,
+          "confirmed_breakout": 323,
+          "failed_breakout": 708,
+          "partial": 0
+        }
+      },
+      "dataset_summary": {
+        "pattern": "double_top",
+        "source": "live_generated",
+        "available": true,
+        "samples": 2459,
+        "positive_labels": 323,
+        "negative_labels": 2136,
+        "sequence_length": 80,
+        "feature_count": 5,
+        "metadata_rows": 2459,
+        "first_window_end_ts": "2008-01-25 13:15:00-05:00",
+        "last_window_end_ts": "2021-05-06 16:00:00-04:00"
+      },
+      "split_summary": {
+        "available": true,
+        "folds": {
+          "train": {
+            "samples": 1474,
+            "positive": 213,
+            "negative": 1261
+          },
+          "val": {
+            "samples": 491,
+            "positive": 39,
+            "negative": 452
+          },
+          "test": {
+            "samples": 492,
+            "positive": 70,
+            "negative": 422
+          },
+          "metadata_split_rows": {
+            "test": 492,
+            "train": 1474,
+            "unused": 2,
+            "val": 491
+          }
+        }
+      },
+      "split_error": null,
+      "warnings": [],
+      "fatal": false,
+      "fatal_message": null
+    },
+    "double_bottom": {
+      "pattern": "double_bottom",
+      "source": "live_generated",
+      "event_summary": {
+        "pattern": "double_bottom",
+        "source": "live_generated",
+        "available": true,
+        "event_count": 2462,
+        "positive_events": 325,
+        "negative_events": 2137,
+        "reason_counts": {
+          "near_miss": 1410,
+          "confirmed_breakout": 325,
+          "failed_breakout": 727,
+          "partial": 0
+        }
+      },
+      "dataset_summary": {
+        "pattern": "double_bottom",
+        "source": "live_generated",
+        "available": true,
+        "samples": 2462,
+        "positive_labels": 325,
+        "negative_labels": 2137,
+        "sequence_length": 80,
+        "feature_count": 5,
+        "metadata_rows": 2462,
+        "first_window_end_ts": "2008-01-28 15:30:00-05:00",
+        "last_window_end_ts": "2021-05-06 15:45:00-04:00"
+      },
+      "split_summary": {
+        "available": true,
+        "folds": {
+          "train": {
+            "samples": 1476,
+            "positive": 227,
+            "negative": 1249
+          },
+          "val": {
+            "samples": 492,
+            "positive": 29,
+            "negative": 463
+          },
+          "test": {
+            "samples": 488,
+            "positive": 69,
+            "negative": 419
+          },
+          "metadata_split_rows": {
+            "test": 488,
+            "train": 1476,
+            "unused": 6,
+            "val": 492
+          }
+        }
+      },
+      "split_error": null,
+      "warnings": [],
+      "fatal": false,
+      "fatal_message": null
+    }
+  }
+}

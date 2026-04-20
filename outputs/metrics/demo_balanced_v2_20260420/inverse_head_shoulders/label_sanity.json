@@ -1,0 +1,61 @@
+{
+  "pattern": "inverse_head_shoulders",
+  "source": "live_generated",
+  "event_summary": {
+    "pattern": "inverse_head_shoulders",
+    "source": "live_generated",
+    "available": true,
+    "event_count": 905,
+    "positive_events": 181,
+    "negative_events": 724,
+    "reason_counts": {
+      "near_miss": 13,
+      "confirmed_breakout": 181,
+      "failed_breakout": 273,
+      "partial": 438
+    }
+  },
+  "dataset_summary": {
+    "pattern": "inverse_head_shoulders",
+    "source": "live_generated",
+    "available": true,
+    "samples": 903,
+    "positive_labels": 181,
+    "negative_labels": 722,
+    "sequence_length": 80,
+    "feature_count": 5,
+    "metadata_rows": 903,
+    "first_window_end_ts": "2008-01-25 10:45:00-05:00",
+    "last_window_end_ts": "2021-05-06 13:45:00-04:00"
+  },
+  "split_summary": {
+    "available": true,
+    "folds": {
+      "train": {
+        "samples": 541,
+        "positive": 49,
+        "negative": 492
+      },
+      "val": {
+        "samples": 180,
+        "positive": 74,
+        "negative": 106
+      },
+      "test": {
+        "samples": 180,
+        "positive": 57,
+        "negative": 123
+      },
+      "metadata_split_rows": {
+        "test": 180,
+        "train": 541,
+        "unused": 2,
+        "val": 180
+      }
+    }
+  },
+  "split_error": null,
+  "warnings": [],
+  "fatal": false,
+  "fatal_message": null
+}

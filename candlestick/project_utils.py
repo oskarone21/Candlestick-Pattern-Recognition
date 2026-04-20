@@ -5,6 +5,7 @@ from typing import Any
 
 import pandas as pd
 
+from candlestick.config import deep_merge
 from candlestick.domain import (
     CFG_DATA_SOURCE,
     CFG_INSTRUMENT,
@@ -61,6 +62,22 @@ def candidate_models_from_cfg(cfg: dict[str, Any]) -> list[str]:
     if models:
         return [str(model) for model in models]
     return list(DEFAULT_CANDIDATE_MODELS)
+
+
+def model_selection_from_cfg(cfg: dict[str, Any], pattern: str | None = None) -> dict[str, Any]:
+    selection_cfg = dict(cfg.get("model_selection", {}))
+    if not pattern:
+        return selection_cfg
+
+    per_pattern_cfg = selection_cfg.get("per_pattern", {})
+    if not isinstance(per_pattern_cfg, dict):
+        return selection_cfg
+
+    pattern_override = per_pattern_cfg.get(pattern, {})
+    if not isinstance(pattern_override, dict):
+        return selection_cfg
+
+    return deep_merge(selection_cfg, pattern_override)
 
 
 def load_processed_prices(

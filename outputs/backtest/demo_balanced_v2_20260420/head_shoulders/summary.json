@@ -1,0 +1,23 @@
+{
+  "trades": 69,
+  "signals_total": 73,
+  "accepted_signals": 69,
+  "rejected_signals": 4,
+  "return_on_capital": 0.010993421434979883,
+  "total_pnl": 10993.421434979884,
+  "win_rate": 0.4927536231884058,
+  "sharpe": 0.2737281815509207,
+  "profit_factor": 1.1786950218702574,
+  "max_drawdown": -12905.976135964054,
+  "expectancy": 159.3249483330418,
+  "max_simultaneous_positions": 1,
+  "average_portfolio_heat": 0.0015400975365458982,
+  "max_portfolio_heat": 0.0024998285714285854,
+  "rejected_same_pattern_overlap": 0,
+  "rejected_max_open_positions": 0,
+  "rejected_portfolio_heat": 0,
+  "rejected_zero_size": 0,
+  "rejected_invalid_stop": 2,
+  "rejected_tiny_stop": 2,
+  "rejected_no_future_bar": 0
+}

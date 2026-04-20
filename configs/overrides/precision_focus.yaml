@@ -1,0 +1,42 @@
+model_selection:
+  primary_selection_metric: precision
+  precision_floor: 0.70
+  recall_floor: 0.25
+  use_conservative_selection_scores: true
+  minimum_predicted_positive_support: 10
+  minimum_true_positive_support: 6
+
+evaluation:
+  minimum_validation_positive_support: 8
+  allow_low_support_champion_fallback: false
+
+labeling:
+  confirmation:
+    confirm_break_within_bars: 16
+
+  labeling_policy:
+    window_anchor: post_completion_bar
+    post_completion_offset_bars: 10
+    minimum_prebreak_gap_bars: 1
+    hard_negative_sampling:
+      target_positive_to_negative_ratio: "1:5"
+
+  head_shoulders:
+    volume_rules:
+      required: false
+      breakout_volume_min_multiplier: 1.0
+
+  inverse_head_shoulders:
+    volume_rules:
+      required: false
+      breakout_volume_min_multiplier: 1.0
+
+  double_top:
+    volume_rules:
+      required: false
+      breakout_volume_min_multiplier: 1.0
+
+  double_bottom:
+    volume_rules:
+      required: false
+      breakout_volume_min_multiplier: 1.0

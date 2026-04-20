@@ -1,0 +1,61 @@
+{
+  "pattern": "head_shoulders",
+  "source": "live_generated",
+  "event_summary": {
+    "pattern": "head_shoulders",
+    "source": "live_generated",
+    "available": true,
+    "event_count": 965,
+    "positive_events": 193,
+    "negative_events": 772,
+    "reason_counts": {
+      "near_miss": 6,
+      "confirmed_breakout": 193,
+      "failed_breakout": 287,
+      "partial": 479
+    }
+  },
+  "dataset_summary": {
+    "pattern": "head_shoulders",
+    "source": "live_generated",
+    "available": true,
+    "samples": 963,
+    "positive_labels": 193,
+    "negative_labels": 770,
+    "sequence_length": 80,
+    "feature_count": 5,
+    "metadata_rows": 963,
+    "first_window_end_ts": "2008-01-25 10:45:00-05:00",
+    "last_window_end_ts": "2021-05-06 10:30:00-04:00"
+  },
+  "split_summary": {
+    "available": true,
+    "folds": {
+      "train": {
+        "samples": 577,
+        "positive": 58,
+        "negative": 519
+      },
+      "val": {
+        "samples": 192,
+        "positive": 64,
+        "negative": 128
+      },
+      "test": {
+        "samples": 192,
+        "positive": 71,
+        "negative": 121
+      },
+      "metadata_split_rows": {
+        "test": 192,
+        "train": 577,
+        "unused": 2,
+        "val": 192
+      }
+    }
+  },
+  "split_error": null,
+  "warnings": [],
+  "fatal": false,
+  "fatal_message": null
+}

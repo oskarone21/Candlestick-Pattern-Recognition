@@ -48,7 +48,7 @@ from candlestick.eval.classification import (
     attach_confidence_intervals,
     choose_threshold,
     evaluate_threshold_metrics,
-    metric_value,
+    selection_metric_value,
     save_metrics_report,
 )
 from candlestick.eval.label_sanity import (
@@ -67,6 +67,7 @@ from candlestick.project_utils import (
     allowed_patterns_from_cfg,
     candidate_models_from_cfg,
     load_processed_prices,
+    model_selection_from_cfg,
     run_name_from_cfg,
 )
 from candlestick.split.time_split import assign_split_column, time_based_split
@@ -79,9 +80,13 @@ SUMMARY_COLUMNS = [
     "selection_metric",
     "selection_metric_value",
     "selection_precision",
+    "selection_precision_lower_bound",
     "selection_recall",
+    "selection_recall_lower_bound",
     "selection_f1",
+    "selection_f1_lower_bound",
     "selection_f2",
+    "selection_f2_lower_bound",
     "f1",
     "f2",
     "precision",
@@ -124,9 +129,13 @@ class ModelSummaryRow(TypedDict):
     selection_metric: str
     selection_metric_value: float
     selection_precision: float
+    selection_precision_lower_bound: float
     selection_recall: float
+    selection_recall_lower_bound: float
     selection_f1: float
+    selection_f1_lower_bound: float
     selection_f2: float
+    selection_f2_lower_bound: float
     f1: float
     f2: float
     precision: float
@@ -685,12 +694,20 @@ def _select_pattern_champion(
     model_results: list[ModelResult],
     primary_metric: str,
     min_val_support: int,
+    conservative_selection: bool,
+    allow_low_support_fallback: bool,
 ) -> ModelResult | None:
     best_supported: ModelResult | None = None
     best_any: ModelResult | None = None
 
     for result in model_results:
-        score = float(metric_value(result["val_metrics"], primary_metric))
+        score = float(
+            selection_metric_value(
+                result["val_metrics"],
+                primary_metric,
+                conservative=conservative_selection,
+            )
+        )
         support_ok = result["val_metrics"]["support"]["positive"] >= min_val_support
         candidate: ModelResult = {**result, "selection_score": score}
 
@@ -699,13 +716,18 @@ def _select_pattern_champion(
         if support_ok and (best_supported is None or score > best_supported["selection_score"]):
             best_supported = candidate
 
-    return best_supported or best_any
+    if best_supported is not None:
+        return best_supported
+    if allow_low_support_fallback:
+        return best_any
+    return None
 
 
 def _build_summary_row(
     pattern: str,
     model_name: str,
     primary_metric: str,
+    conservative_selection: bool,
     threshold: float,
     val_metrics: dict[str, Any],
     test_metrics: dict[str, Any],
@@ -715,11 +737,17 @@ def _build_summary_row(
         "model": model_name,
         "selection_split": SELECTION_SPLIT_VAL,
         "selection_metric": primary_metric,
-        "selection_metric_value": float(metric_value(val_metrics, primary_metric)),
+        "selection_metric_value": float(
+            selection_metric_value(val_metrics, primary_metric, conservative=conservative_selection)
+        ),
         "selection_precision": float(val_metrics["precision"]),
+        "selection_precision_lower_bound": float(val_metrics["precision_lower_bound"]),
         "selection_recall": float(val_metrics["recall"]),
+        "selection_recall_lower_bound": float(val_metrics["recall_lower_bound"]),
         "selection_f1": float(val_metrics["f1"]),
+        "selection_f1_lower_bound": float(val_metrics["f1_lower_bound"]),
         "selection_f2": float(val_metrics["f2"]),
+        "selection_f2_lower_bound": float(val_metrics["f2_lower_bound"]),
         "f1": float(test_metrics["f1"]),
         "f2": float(test_metrics["f2"]),
         "precision": float(test_metrics["precision"]),
@@ -801,15 +829,19 @@ def _evaluate_model(
         test_prob_raw=test_prob_raw,
     )
 
-    model_selection_cfg = cfg.get("model_selection", {})
+    model_selection_cfg = model_selection_from_cfg(cfg, pattern=pattern)
     primary_metric = str(model_selection_cfg.get("primary_selection_metric", METRIC_F1)).lower()
+    conservative_selection = bool(model_selection_cfg.get("use_conservative_selection_scores", True))
     threshold, threshold_diag = choose_threshold(
         y_true=split_data["y_val"],
         y_prob=val_prob,
         precision_floor=float(model_selection_cfg.get("precision_floor", 0.0)),
         recall_floor=float(model_selection_cfg.get("recall_floor", 0.0)),
+        minimum_predicted_positive_support=int(model_selection_cfg.get("minimum_predicted_positive_support", 0)),
+        minimum_true_positive_support=int(model_selection_cfg.get("minimum_true_positive_support", 0)),
         primary_metric=primary_metric,
         grid_size=int(cfg.get("evaluation", {}).get("threshold_grid_size", 181)),
+        conservative_selection=conservative_selection,
     )
     val_metrics = evaluate_threshold_metrics(split_data["y_val"], val_prob, threshold)
     test_metrics = evaluate_threshold_metrics(split_data["y_test"], test_prob, threshold)
@@ -833,8 +865,11 @@ def _evaluate_model(
     report["artifact_path"] = str(model_path)
     report["postprocess_path"] = str(postprocess_path)
     report["selection_metric"] = primary_metric
-    report["selection_value"] = float(metric_value(val_metrics, primary_metric))
+    report["selection_value"] = float(
+        selection_metric_value(val_metrics, primary_metric, conservative=conservative_selection)
+    )
     report["selection_metrics"] = val_metrics
+    report["selection_conservative"] = conservative_selection
     report["threshold_diagnostics"] = threshold_diag
     report["calibration"] = calibration
     report["runtime_summary"] = runtime
@@ -870,6 +905,7 @@ def _evaluate_model(
         pattern=pattern,
         model_name=model_name,
         primary_metric=primary_metric,
+        conservative_selection=conservative_selection,
         threshold=threshold,
         val_metrics=val_metrics,
         test_metrics=test_metrics,
@@ -881,7 +917,9 @@ def _evaluate_model(
         "val_metrics": val_metrics,
         "test_metrics": test_metrics,
         "pred_df": test_pred_df,
-        "selection_score": float(metric_value(val_metrics, primary_metric)),
+        "selection_score": float(
+            selection_metric_value(val_metrics, primary_metric, conservative=conservative_selection)
+        ),
     }
     return result, summary_row
 
@@ -950,10 +988,19 @@ def _run_pattern(
         model_results.append(model_result)
         summary_rows.append(summary_row)
 
-    primary_metric = str(cfg.get("model_selection", {}).get("primary_selection_metric", METRIC_F1)).lower()
+    selection_cfg = model_selection_from_cfg(cfg, pattern=pattern)
+    primary_metric = str(selection_cfg.get("primary_selection_metric", METRIC_F1)).lower()
+    conservative_selection = bool(selection_cfg.get("use_conservative_selection_scores", True))
     min_support = int(cfg.get("evaluation", {}).get("minimum_test_positive_support", 5))
     min_val_support = int(cfg.get("evaluation", {}).get("minimum_validation_positive_support", min_support))
-    champion = _select_pattern_champion(model_results, primary_metric=primary_metric, min_val_support=min_val_support)
+    allow_low_support_fallback = bool(cfg.get("evaluation", {}).get("allow_low_support_champion_fallback", False))
+    champion = _select_pattern_champion(
+        model_results,
+        primary_metric=primary_metric,
+        min_val_support=min_val_support,
+        conservative_selection=conservative_selection,
+        allow_low_support_fallback=allow_low_support_fallback,
+    )
     if champion is None:
         return summary_rows, None, pattern_sanity
 
@@ -1033,7 +1080,7 @@ def run_experiment_suite(cfg: dict[str, Any], smoke: bool = False) -> dict[str, 
     prices = _load_prices(cfg, smoke=smoke)
     repro_manifest = _build_repro_manifest(cfg, runtime, prices, smoke=smoke)
     _save_json(roots.metrics_root / "repro_manifest.json", repro_manifest)
-    primary_metric = str(cfg.get("model_selection", {}).get("primary_selection_metric", METRIC_F1)).lower()
+    primary_metric = str(model_selection_from_cfg(cfg).get("primary_selection_metric", METRIC_F1)).lower()
     run_label_sanity: dict[str, Any] = {
         "run_name": run_name_from_cfg(cfg),
         "smoke": bool(smoke),

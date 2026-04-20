@@ -7,8 +7,9 @@ import numpy as np
 
 from candlestick.domain import CALIBRATED_MODEL_NAMES, CFG_MODEL_SELECTION, CFG_PROJECT, MODEL_HGB, MODEL_LSTM, MODEL_LOGREG, MODEL_TCN, MODEL_TRANSFORMER
 from candlestick.eval.calibration import apply_probability_calibrator, fit_probability_calibrator
-from candlestick.eval.classification import choose_threshold, evaluate_threshold_metrics, metric_value
+from candlestick.eval.classification import choose_threshold, evaluate_threshold_metrics, selection_metric_value
 from candlestick.models.registry import predict_model_proba, train_model
+from candlestick.project_utils import model_selection_from_cfg
 
 
 class OptunaUnavailableError(RuntimeError):
@@ -73,11 +74,15 @@ def _validation_objective_score(
     y_val: np.ndarray,
     val_prob_raw: np.ndarray,
     cfg: dict[str, Any],
+    pattern_name: str | None = None,
 ) -> float:
-    selection_cfg = cfg.get("model_selection", {})
+    selection_cfg = model_selection_from_cfg(cfg, pattern=pattern_name)
     precision_floor = float(selection_cfg.get("precision_floor", 0.0))
     recall_floor = float(selection_cfg.get("recall_floor", 0.0))
+    minimum_predicted_positive_support = int(selection_cfg.get("minimum_predicted_positive_support", 0))
+    minimum_true_positive_support = int(selection_cfg.get("minimum_true_positive_support", 0))
     primary_metric = str(selection_cfg.get("primary_selection_metric", "f1")).lower()
+    conservative_selection = bool(selection_cfg.get("use_conservative_selection_scores", True))
 
     val_prob = _maybe_calibrate(model_name, y_val, val_prob_raw)
     threshold, _ = choose_threshold(
@@ -85,10 +90,13 @@ def _validation_objective_score(
         y_prob=val_prob,
         precision_floor=precision_floor,
         recall_floor=recall_floor,
+        minimum_predicted_positive_support=minimum_predicted_positive_support,
+        minimum_true_positive_support=minimum_true_positive_support,
         primary_metric=primary_metric,
+        conservative_selection=conservative_selection,
     )
     metrics = evaluate_threshold_metrics(y_val, val_prob, threshold)
-    return float(metric_value(metrics, primary_metric))
+    return float(selection_metric_value(metrics, primary_metric, conservative=conservative_selection))
 
 
 def tune_model(
@@ -147,15 +155,20 @@ def tune_model(
         )
 
         val_prob_raw = predict_model_proba(model_name, model, X_val)
-        return _validation_objective_score(model_name, y_val, val_prob_raw, cfg)
+        return _validation_objective_score(
+            model_name,
+            y_val,
+            val_prob_raw,
+            cfg,
+            pattern_name=pattern_name,
+        )
 
     sampler = TPESampler(seed=seed)
     study = optuna.create_study(
         study_name=study_name,
         direction="maximize",
         sampler=sampler,
-        storage=storage,
-        load_if_exists=True,
+        storage=None,  # In-memory storage fixes Azure ML shared-drive lockups
     )
     study.optimize(objective, n_trials=n_trials, timeout=timeout_sec)
 

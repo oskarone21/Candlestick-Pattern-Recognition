@@ -6,10 +6,12 @@ __pycache__/
 *.py[cod]
 *.pyo
 .pytest_cache/
+.pytest-tmp/
 .mypy_cache/
 .ruff_cache/
 .venv/
 venv/
+pytest-cache-files-*/
 
 # Jupyter
 .ipynb_checkpoints/

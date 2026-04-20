@@ -547,14 +547,20 @@ def _payload_hero(
     pair_backtest_df: pd.DataFrame,
     champion_rows: list[ChampionPayloadRow],
     macro: dict[str, Any],
+    visible_patterns: list[str],
 ) -> dict[str, Any]:
-    visible_summary = summary_df[summary_df["presentation_eligible"]].copy() if not summary_df.empty else summary_df
+    visible_set = set(visible_patterns)
+    visible_summary = (
+        summary_df[summary_df["pattern"].astype(str).isin(visible_set)].copy()
+        if not summary_df.empty
+        else summary_df
+    )
     visible_pair_backtest = (
-        pair_backtest_df[pair_backtest_df["presentation_eligible"]].copy()
+        pair_backtest_df[pair_backtest_df["pattern"].astype(str).isin(visible_set)].copy()
         if not pair_backtest_df.empty
         else pair_backtest_df
     )
-    visible_champions = [row for row in champion_rows if row["presentation_eligible"]]
+    visible_champions = [row for row in champion_rows if row["pattern"] in visible_set]
 
     top_f1 = (
         visible_summary.sort_values(["f1", "pr_auc"], ascending=False).iloc[0].to_dict()
@@ -609,17 +615,29 @@ def _build_presentation_payload(
         if not summary_df.empty
         else pd.DataFrame()
     )
-    visible_patterns = (
+    eligible_patterns = (
         support_rows.loc[support_rows["presentation_eligible"], "pattern"].astype(str).tolist()
         if not support_rows.empty
         else []
     )
-    hidden_patterns = (
+    ineligible_patterns = (
         support_rows.loc[~support_rows["presentation_eligible"], "pattern"].astype(str).tolist()
         if not support_rows.empty
         else []
     )
-    visible_champions = [row for row in champion_rows if row["presentation_eligible"]]
+    fallback_to_all_patterns = False
+    visible_patterns = eligible_patterns
+    hidden_patterns = ineligible_patterns
+
+    if not visible_patterns and not support_rows.empty:
+        visible_patterns = support_rows["pattern"].astype(str).tolist()
+        hidden_patterns = []
+        fallback_to_all_patterns = True
+
+    visible_set = set(visible_patterns)
+    eligible_set = set(eligible_patterns)
+    visible_champions = [row for row in champion_rows if row["pattern"] in visible_set]
+    eligible_champions = [row for row in champion_rows if row["pattern"] in eligible_set]
     mean_visible_champion_f1 = (
         float(pd.Series([row["test_f1"] for row in visible_champions], dtype=float).mean())
         if visible_champions
@@ -630,10 +648,10 @@ def _build_presentation_payload(
         if visible_champions
         else 0.0
     )
-    has_strong_champion = any(row["test_f1"] >= PRESENTATION_MIN_CHAMPION_F1 for row in visible_champions)
-    presentation_eligible = len(visible_patterns) >= PRESENTATION_MIN_VISIBLE_PATTERNS and has_strong_champion
+    has_strong_champion = any(row["test_f1"] >= PRESENTATION_MIN_CHAMPION_F1 for row in eligible_champions)
+    presentation_eligible = len(eligible_patterns) >= PRESENTATION_MIN_VISIBLE_PATTERNS and has_strong_champion
     quality_score = (
-        len(visible_patterns) * 100.0
+        len(eligible_patterns) * 100.0
         + mean_visible_champion_f1 * 10.0
         + mean_visible_champion_pr_auc
     )
@@ -642,6 +660,11 @@ def _build_presentation_payload(
         presentation_reason = (
             f"{len(visible_patterns)} presentation-ready patterns cleared the support gates; "
             f"{len(hidden_patterns)} hidden for low support."
+        )
+    elif fallback_to_all_patterns:
+        presentation_reason = (
+            "No patterns cleared the support gates, so the dashboard is showing all patterns from "
+            "the current run instead of a blank view."
         )
     elif visible_patterns:
         presentation_reason = (
@@ -655,6 +678,7 @@ def _build_presentation_payload(
         "presentation_eligible": presentation_eligible,
         "visible_patterns": visible_patterns,
         "hidden_patterns": hidden_patterns,
+        "fallback_to_all_patterns": fallback_to_all_patterns,
         "quality_score": float(quality_score),
         "presentation_reason": presentation_reason,
         "mean_visible_champion_f1": mean_visible_champion_f1,
@@ -687,7 +711,13 @@ def _build_dashboard_payload(
 
     return {
         "meta": _payload_meta(run_name, output_dir, metrics_root, backtest_root, gallery_root, summary_df),
-        "hero": _payload_hero(summary_df, pair_backtest_df, champion_rows, macro),
+        "hero": _payload_hero(
+            summary_df,
+            pair_backtest_df,
+            champion_rows,
+            macro,
+            visible_patterns=presentation["visible_patterns"],
+        ),
         "presentation": presentation,
         "classification": {
             "summary_rows": summary_df.to_dict(orient="records"),

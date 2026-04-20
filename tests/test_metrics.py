@@ -6,6 +6,7 @@ from candlestick.eval.classification import (
     attach_confidence_intervals,
     choose_threshold,
     evaluate_threshold_metrics,
+    selection_metric_value,
 )
 
 
@@ -48,3 +49,55 @@ def test_choose_threshold_recall_first_under_precision_floor():
     assert metrics["precision"] >= 0.5
     assert metrics["recall"] == 1.0
     assert diag["selected_metrics"]["f2"] == metrics["f2"]
+
+
+def test_conservative_selection_metric_penalizes_tiny_perfect_fold():
+    y_true = np.array([1, 1, 0, 0], dtype=int)
+    y_prob = np.array([0.95, 0.85, 0.20, 0.10], dtype=float)
+
+    metrics = evaluate_threshold_metrics(y_true, y_prob, threshold=0.5)
+
+    assert metrics["precision"] == 1.0
+    assert metrics["recall"] == 1.0
+    assert metrics["precision_lower_bound"] < 1.0
+    assert metrics["recall_lower_bound"] < 1.0
+    assert selection_metric_value(metrics, "f1", conservative=True) < 1.0
+
+
+def test_choose_threshold_requires_minimum_prediction_support_for_precision_mode():
+    y_true = np.array([1, 1, 1, 1, 0, 0, 0, 0], dtype=int)
+    y_prob = np.array([0.95, 0.70, 0.62, 0.55, 0.60, 0.30, 0.20, 0.10], dtype=float)
+
+    threshold, diag = choose_threshold(
+        y_true=y_true,
+        y_prob=y_prob,
+        precision_floor=0.75,
+        recall_floor=0.25,
+        minimum_predicted_positive_support=4,
+        minimum_true_positive_support=3,
+        primary_metric="precision",
+        grid_size=19,
+        conservative_selection=True,
+    )
+    metrics = evaluate_threshold_metrics(y_true, y_prob, threshold)
+
+    assert np.isclose(threshold, 0.35)
+    assert metrics["precision"] == 0.8
+    assert metrics["recall"] == 1.0
+    assert metrics["support"]["predicted_positive"] >= 4
+    assert metrics["confusion_matrix"]["tp"] >= 3
+    assert diag["selection_stage"] == "floors"
+
+
+def test_choose_threshold_prefers_lower_threshold_when_scores_tie():
+    y_true = np.array([1, 1, 0, 0], dtype=int)
+    y_prob = np.array([0.90, 0.80, 0.04, 0.03], dtype=float)
+
+    threshold, _ = choose_threshold(
+        y_true=y_true,
+        y_prob=y_prob,
+        primary_metric="precision",
+        grid_size=19,
+    )
+
+    assert threshold == 0.05

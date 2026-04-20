@@ -87,7 +87,7 @@ def _timezone_fit_metrics(
 
     return {
         "rows_in_session": int(len(in_session)),
-        "duplicates_in_session": int(pd.Series(in_session.astype(str)).duplicated().sum()),
+        "duplicates_in_session": int(in_session.duplicated().sum()),
         "daily_counts": _daily_count_stats(daily),
         "full_session_days": int((daily_counts == expected).sum()),
         "expected_minutes_per_day": expected,

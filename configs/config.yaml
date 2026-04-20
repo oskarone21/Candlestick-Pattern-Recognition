@@ -186,7 +186,7 @@ model:
   image_backbone: resnet18
   pretrained_image_backbone: true
   num_classes: 2
-  sequence_normalization_mode: train_zscore  # train_zscore | window_minmax
+  sequence_normalization_mode: window_minmax  # SWAPPED to window_minmax to prevent absolute price drift
   dropout: 0.2
 
 model_selection:
@@ -197,6 +197,9 @@ model_selection:
   primary_selection_metric: f2
   precision_floor: 0.50
   recall_floor: 0.0
+  use_conservative_selection_scores: true
+  minimum_predicted_positive_support: 0
+  minimum_true_positive_support: 0
 
 training:
   batch_size: 64
@@ -227,6 +230,7 @@ evaluation:
   allow_zero_embargo_fallback: false      # fail fast instead of silently dropping purge gap
   minimum_validation_positive_support: 5  # champion selection support gate (validation-driven)
   minimum_test_positive_support: 5
+  allow_low_support_champion_fallback: false
   bootstrap_iterations: 300
   threshold_grid_size: 181
   metrics:

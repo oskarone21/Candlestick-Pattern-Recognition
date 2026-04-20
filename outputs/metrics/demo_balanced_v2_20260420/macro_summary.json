@@ -1,0 +1,9 @@
+{
+  "primary_selection_metric": "f1",
+  "macro_f1": 0.6615223702185793,
+  "macro_f2": 0.654168344028475,
+  "macro_precision": 0.6790038454456042,
+  "macro_recall": 0.6504475748464854,
+  "macro_selection_metric": 0.5407261459974477,
+  "patterns_covered": 4
+}

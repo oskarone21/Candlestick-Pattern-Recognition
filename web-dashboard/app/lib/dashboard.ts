@@ -167,6 +167,7 @@ export type DashboardSnapshot = {
     presentation_eligible: boolean;
     visible_patterns: string[];
     hidden_patterns: string[];
+    fallback_to_all_patterns?: boolean;
     quality_score: number;
     presentation_reason: string;
     mean_visible_champion_f1: number;
@@ -232,7 +233,7 @@ function simplifyUsdSymbol(value: string) {
 
 export function formatPercent(value: number | null | undefined, digits = 1) {
   if (value == null || Number.isNaN(value)) {
-    return "—";
+    return "-";
   }
   return new Intl.NumberFormat("en-GB", {
     style: "percent",
@@ -242,7 +243,7 @@ export function formatPercent(value: number | null | undefined, digits = 1) {
 
 export function formatCurrency(value: number | null | undefined, compact = false) {
   if (value == null || Number.isNaN(value)) {
-    return "—";
+    return "-";
   }
   const rendered = compact ? compactCurrencyFormatter.format(value) : currencyFormatter.format(value);
   return simplifyUsdSymbol(rendered);
@@ -250,7 +251,7 @@ export function formatCurrency(value: number | null | undefined, compact = false
 
 export function formatSignedCurrency(value: number | null | undefined, compact = false) {
   if (value == null || Number.isNaN(value)) {
-    return "—";
+    return "-";
   }
   const base = compact ? compactCurrencyFormatter : currencyFormatter;
   const rendered = simplifyUsdSymbol(base.format(Math.abs(value)));
@@ -265,18 +266,18 @@ export function formatSignedCurrency(value: number | null | undefined, compact =
 
 export function formatNumber(value: number | null | undefined, compact = false) {
   if (value == null || Number.isNaN(value)) {
-    return "—";
+    return "-";
   }
   return compact ? compactNumberFormatter.format(value) : numberFormatter.format(value);
 }
 
 export function formatDateTime(value: string | null | undefined) {
   if (!value) {
-    return "—";
+    return "-";
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return "—";
+    return "-";
   }
   return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
@@ -348,10 +349,23 @@ export function averageByModel(rows: ClassificationRow[]) {
 }
 
 export function visiblePatterns(snapshot: DashboardSnapshot) {
-  return snapshot.presentation ? snapshot.presentation.visible_patterns : snapshot.meta.patterns;
+  const explicitVisible = snapshot.presentation?.visible_patterns ?? [];
+  if (explicitVisible.length > 0) {
+    return explicitVisible;
+  }
+
+  const summaryPatterns = [...new Set(snapshot.classification.summary_rows.map((row) => row.pattern))];
+  if (summaryPatterns.length > 0) {
+    return summaryPatterns;
+  }
+
+  return snapshot.meta.patterns;
 }
 
 export function hiddenPatterns(snapshot: DashboardSnapshot) {
+  if ((snapshot.presentation?.visible_patterns ?? []).length === 0 && snapshot.classification.summary_rows.length > 0) {
+    return [];
+  }
   return snapshot.presentation?.hidden_patterns ?? [];
 }
 

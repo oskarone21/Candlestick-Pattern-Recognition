@@ -1,0 +1,13 @@
+file,window_end_idx,window_end_ts,proba,label,y_pred
+outputs\gallery\demo_balanced_v2_20260420\double_top\fn\double_top_fn_13.png,69991,2018-10-18 11:30:00-04:00,0.0415608389107537,1,0
+outputs\gallery\demo_balanced_v2_20260420\double_top\fn\double_top_fn_38.png,70813,2018-12-04 12:00:00-05:00,0.0568631788292266,1,0
+outputs\gallery\demo_balanced_v2_20260420\double_top\fn\double_top_fn_39.png,70871,2018-12-07 13:30:00-05:00,0.0653243093416574,1,0
+outputs\gallery\demo_balanced_v2_20260420\double_top\fn\double_top_fn_48.png,71231,2018-12-28 15:30:00-05:00,0.2898384300410855,1,0
+outputs\gallery\demo_balanced_v2_20260420\double_top\fn\double_top_fn_51.png,71259,2018-12-31 16:00:00-05:00,0.2899287939581095,1,0
+outputs\gallery\demo_balanced_v2_20260420\double_top\fn\double_top_fn_135.png,73937,2019-05-30 16:00:00-04:00,0.0172773182724829,1,0
+outputs\gallery\demo_balanced_v2_20260420\double_top\fn\double_top_fn_173.png,75282,2019-08-14 10:45:00-04:00,0.0677245523823149,1,0
+outputs\gallery\demo_balanced_v2_20260420\double_top\fn\double_top_fn_176.png,75403,2019-08-20 15:00:00-04:00,0.1190751999219778,1,0
+outputs\gallery\demo_balanced_v2_20260420\double_top\fn\double_top_fn_178.png,75437,2019-08-22 10:30:00-04:00,0.1168946080576591,1,0
+outputs\gallery\demo_balanced_v2_20260420\double_top\fn\double_top_fn_197.png,76140,2019-10-01 10:45:00-04:00,0.0784716015888258,1,0
+outputs\gallery\demo_balanced_v2_20260420\double_top\fn\double_top_fn_200.png,76263,2019-10-07 15:30:00-04:00,0.025183564631286,1,0
+outputs\gallery\demo_balanced_v2_20260420\double_top\fn\double_top_fn_209.png,76482,2019-10-18 11:45:00-04:00,0.0966198788472299,1,0

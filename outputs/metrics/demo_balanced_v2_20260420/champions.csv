@@ -1,0 +1,5 @@
+pattern,champion_model,threshold,selection_split,selection_metric,selection_metric_value,selection_f1,selection_f2,predictions_path
+head_shoulders,tcn,0.4049999999999999,val,f1,0.6855558765799122,0.7969924812030075,0.8153846153846154,outputs\metrics\demo_balanced_v2_20260420\head_shoulders\champion_test_predictions.csv
+inverse_head_shoulders,tcn,0.4699999999999999,val,f1,0.6190853622781574,0.7297297297297297,0.7297297297297297,outputs\metrics\demo_balanced_v2_20260420\inverse_head_shoulders\champion_test_predictions.csv
+double_top,tcn,0.30999999999999994,val,f1,0.5170409943710608,0.6875,0.6077348066298343,outputs\metrics\demo_balanced_v2_20260420\double_top\champion_test_predictions.csv
+double_bottom,tcn,0.15999999999999998,val,f2,0.3412223507606605,0.4507042253521127,0.5063291139240507,outputs\metrics\demo_balanced_v2_20260420\double_bottom\champion_test_predictions.csv

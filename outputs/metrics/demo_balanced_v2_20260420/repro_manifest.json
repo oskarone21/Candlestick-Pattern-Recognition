@@ -1,0 +1,94 @@
+{
+  "generated_at_utc": "2026-04-20T18:43:45.208160+00:00",
+  "run_name": "demo_balanced_v2_20260420",
+  "smoke": false,
+  "git": {
+    "commit_sha": "38333191d94d3fffa3c8e424c402b25f04b81a3b",
+    "branch": "production",
+    "is_dirty": true
+  },
+  "python_version": "3.13.5",
+  "config_stack": {
+    "base_config": "configs\\config.yaml",
+    "config_overrides": [
+      "configs\\overrides\\production_repro.yaml",
+      "configs\\overrides\\demo_balanced.yaml"
+    ],
+    "set_overrides": [
+      "project.run_name=demo_balanced_v2_20260420"
+    ]
+  },
+  "runtime": {
+    "requested_device": "cpu",
+    "selected_device": "cpu",
+    "cuda_available": false,
+    "mps_available": false,
+    "gpu_name": null,
+    "mixed_precision_enabled": false,
+    "pin_memory": false,
+    "num_workers": 0,
+    "persistent_workers": false,
+    "torch_version": "2.11.0+cpu"
+  },
+  "data_source": {
+    "provider": "kagglehub",
+    "kaggle_dataset": "gratefuldata/intraday-stock-data-1-min-sp-500-200821",
+    "kaggle_file_path": "1_min_SPY_2008-2021.csv",
+    "instrument": "SPY",
+    "base_timeframe": "1min",
+    "target_timeframe": "15min"
+  },
+  "dependency_versions": {
+    "numpy": "2.4.2",
+    "pandas": "3.0.1",
+    "yfinance": "1.3.0",
+    "kagglehub": "1.0.0",
+    "matplotlib": "3.9.2",
+    "mplfinance": "0.12.10b0",
+    "pillow": "11.0.0",
+    "opencv-python-headless": "4.10.0.84",
+    "albumentations": "1.4.24",
+    "torch": "2.11.0",
+    "torchvision": "0.26.0",
+    "scikit-learn": "1.8.0",
+    "tqdm": "4.67.3",
+    "tensorboard": "2.20.0",
+    "optuna": "4.8.0",
+    "joblib": "1.5.3",
+    "pyyaml": "6.0.2",
+    "jupyterlab": "4.3.1",
+    "ipykernel": "6.29.5",
+    "pytest": "8.3.3"
+  },
+  "datasets": {
+    "raw_1m": {
+      "path": "data\\raw\\spy_1m.csv",
+      "exists": true,
+      "size_bytes": 142477681,
+      "row_count": 2070834,
+      "sha256": "2ad8c4172e48ea725b7427f5241b3d8edb1611994fe69c185f04fab3c7e80343"
+    },
+    "processed_15m": {
+      "path": "data\\processed\\spy_15m.csv",
+      "exists": true,
+      "size_bytes": 5565792,
+      "row_count": 86538,
+      "sha256": "e46a61cf2af8347ed1c153d85d00d23687101d7b33981ce87adb0657258dc4f7"
+    },
+    "processed_price_summary": {
+      "available": true,
+      "row_count": 86538,
+      "symbol_count": 1,
+      "symbols": [
+        "SPY"
+      ],
+      "first_ts": "2008-01-22T14:45:00+00:00",
+      "last_ts": "2021-05-06T20:00:00+00:00",
+      "trading_day_count": 3339,
+      "bars_per_day_distribution": {
+        "14": 23,
+        "26": 3316
+      }
+    }
+  }
+}

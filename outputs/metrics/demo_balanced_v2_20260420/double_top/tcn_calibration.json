@@ -1,0 +1,12 @@
+{
+  "calibrator": {
+    "method": "platt",
+    "fitted": true,
+    "coef": 0.6539999906602545,
+    "intercept": -1.7372376852025724
+  },
+  "raw_brier": 0.05770567808621189,
+  "calibrated_brier": 0.03809658612634642,
+  "mean_raw_probability": 0.15366664834517257,
+  "mean_calibrated_probability": 0.07942625382752708
+}

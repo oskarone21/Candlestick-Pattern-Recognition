@@ -1,0 +1,13 @@
+file,window_end_idx,window_end_ts,proba,label,y_pred
+outputs\gallery\demo_balanced_v2_20260420\head_shoulders\fn\head_shoulders_fn_14.png,56079,2016-08-31 12:00:00-04:00,0.1312592757334978,1,0
+outputs\gallery\demo_balanced_v2_20260420\head_shoulders\fn\head_shoulders_fn_17.png,56679,2016-10-04 12:30:00-04:00,0.0571136487614284,1,0
+outputs\gallery\demo_balanced_v2_20260420\head_shoulders\fn\head_shoulders_fn_54.png,63972,2017-11-14 15:15:00-05:00,0.3791419397582045,1,0
+outputs\gallery\demo_balanced_v2_20260420\head_shoulders\fn\head_shoulders_fn_56.png,64255,2017-12-01 11:00:00-05:00,0.1573481134296176,1,0
+outputs\gallery\demo_balanced_v2_20260420\head_shoulders\fn\head_shoulders_fn_57.png,64320,2017-12-05 14:15:00-05:00,0.3820942660454851,1,0
+outputs\gallery\demo_balanced_v2_20260420\head_shoulders\fn\head_shoulders_fn_61.png,65444,2018-02-07 15:45:00-05:00,0.0795409625424301,1,0
+outputs\gallery\demo_balanced_v2_20260420\head_shoulders\fn\head_shoulders_fn_62.png,65700,2018-02-22 14:45:00-05:00,0.1363927469734916,1,0
+outputs\gallery\demo_balanced_v2_20260420\head_shoulders\fn\head_shoulders_fn_66.png,66223,2018-03-22 15:30:00-04:00,0.386710652681424,1,0
+outputs\gallery\demo_balanced_v2_20260420\head_shoulders\fn\head_shoulders_fn_81.png,69128,2018-08-31 10:15:00-04:00,0.1176497957404943,1,0
+outputs\gallery\demo_balanced_v2_20260420\head_shoulders\fn\head_shoulders_fn_95.png,71241,2018-12-31 11:30:00-05:00,0.3284317496446627,1,0
+outputs\gallery\demo_balanced_v2_20260420\head_shoulders\fn\head_shoulders_fn_109.png,72716,2019-03-25 09:45:00-04:00,0.3642079887687028,1,0
+outputs\gallery\demo_balanced_v2_20260420\head_shoulders\fn\head_shoulders_fn_117.png,73701,2019-05-16 15:30:00-04:00,0.212304857276192,1,0

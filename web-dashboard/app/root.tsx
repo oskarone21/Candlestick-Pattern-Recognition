@@ -28,7 +28,7 @@ export function links() {
 export function meta({ data }: Route.MetaArgs) {
   const runName = data?.snapshot?.meta.run_name;
   return [
-    { title: runName ? `${runName} · Candlestick Results` : "Candlestick Results Dashboard" },
+    { title: runName ? `${runName} - Candlestick Results` : "Candlestick Results Dashboard" },
     {
       name: "description",
       content:
@@ -37,7 +37,7 @@ export function meta({ data }: Route.MetaArgs) {
   ];
 }
 
-function Document({ children }: { children: ReactNode }) {
+export function Layout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <head>
@@ -59,11 +59,9 @@ export default function App() {
   const { snapshot, latestRun } = useLoaderData<typeof loader>();
 
   return (
-    <Document>
-      <DashboardShell snapshot={snapshot} latestRun={latestRun}>
-        <Outlet context={{ snapshot, latestRun }} />
-      </DashboardShell>
-    </Document>
+    <DashboardShell snapshot={snapshot} latestRun={latestRun}>
+      <Outlet context={{ snapshot, latestRun }} />
+    </DashboardShell>
   );
 }
 
@@ -79,15 +77,13 @@ export function ErrorBoundary() {
       : "An unexpected error interrupted the dashboard.";
 
   return (
-    <Document>
-      <main className="mx-auto flex min-h-screen max-w-3xl items-center px-6 py-24">
-        <section className="glass-panel w-full p-10 sm:p-14">
-          <p className="eyebrow">Candlestick Results</p>
-          <h1 className="display-title mt-4 text-4xl">{title}</h1>
-          <p className="mt-4 max-w-2xl text-base text-slate-600">{description}</p>
-        </section>
-      </main>
-    </Document>
+    <main className="mx-auto flex min-h-screen max-w-3xl items-center px-6 py-24">
+      <section className="glass-panel w-full p-10 sm:p-14">
+        <p className="eyebrow">Candlestick Results</p>
+        <h1 className="display-title mt-4 text-4xl">{title}</h1>
+        <p className="mt-4 max-w-2xl text-base text-slate-600">{description}</p>
+      </section>
+    </main>
   );
 }
 

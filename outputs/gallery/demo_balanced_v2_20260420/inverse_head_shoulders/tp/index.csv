@@ -1,0 +1,13 @@
+file,window_end_idx,window_end_ts,proba,label,y_pred
+outputs\gallery\demo_balanced_v2_20260420\inverse_head_shoulders\tp\inverse_head_shoulders_tp_1.png,53470,2016-04-11 09:45:00-04:00,0.7114234999483239,1,1
+outputs\gallery\demo_balanced_v2_20260420\inverse_head_shoulders\tp\inverse_head_shoulders_tp_5.png,54275,2016-05-23 16:00:00-04:00,0.533319442855125,1,1
+outputs\gallery\demo_balanced_v2_20260420\inverse_head_shoulders\tp\inverse_head_shoulders_tp_11.png,55582,2016-08-04 11:15:00-04:00,0.4977078433909659,1,1
+outputs\gallery\demo_balanced_v2_20260420\inverse_head_shoulders\tp\inverse_head_shoulders_tp_14.png,55913,2016-08-22 16:00:00-04:00,0.7594081833281789,1,1
+outputs\gallery\demo_balanced_v2_20260420\inverse_head_shoulders\tp\inverse_head_shoulders_tp_22.png,57291,2016-11-04 16:00:00-04:00,0.8878938960505045,1,1
+outputs\gallery\demo_balanced_v2_20260420\inverse_head_shoulders\tp\inverse_head_shoulders_tp_24.png,57773,2016-12-02 16:00:00-05:00,0.8387798951140738,1,1
+outputs\gallery\demo_balanced_v2_20260420\inverse_head_shoulders\tp\inverse_head_shoulders_tp_25.png,58065,2016-12-20 11:00:00-05:00,0.6010469943412081,1,1
+outputs\gallery\demo_balanced_v2_20260420\inverse_head_shoulders\tp\inverse_head_shoulders_tp_27.png,58293,2017-01-03 16:00:00-05:00,0.8009581257776521,1,1
+outputs\gallery\demo_balanced_v2_20260420\inverse_head_shoulders\tp\inverse_head_shoulders_tp_32.png,59229,2017-02-24 16:00:00-05:00,0.9345580297239224,1,1
+outputs\gallery\demo_balanced_v2_20260420\inverse_head_shoulders\tp\inverse_head_shoulders_tp_39.png,60634,2017-05-15 09:45:00-04:00,0.776221998493017,1,1
+outputs\gallery\demo_balanced_v2_20260420\inverse_head_shoulders\tp\inverse_head_shoulders_tp_53.png,62415,2017-08-21 16:00:00-04:00,0.7477357798612309,1,1
+outputs\gallery\demo_balanced_v2_20260420\inverse_head_shoulders\tp\inverse_head_shoulders_tp_64.png,64364,2017-12-07 12:15:00-05:00,0.6504334780489367,1,1

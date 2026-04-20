@@ -1,8 +1,8 @@
 # Core data stack
-numpy==1.26.4
-pandas==2.2.3
-yfinance==1.2.2
-kagglehub[pandas-datasets]==1.0.0
+numpy>=1.26.4
+pandas>=2.2.3
+yfinance>=1.2.2
+kagglehub[pandas-datasets]>=1.0.0
 
 # Chart rendering and image handling
 matplotlib==3.9.2
@@ -14,15 +14,15 @@ opencv-python-headless==4.10.0.84
 albumentations==1.4.24
 
 # Deep learning base packages. Install the CUDA build of torch on NVIDIA machines.
-torch==2.5.1
-torchvision==0.20.1
+torch>=2.5.1
+torchvision>=0.20.1
 
 # Training and evaluation
-scikit-learn==1.5.2
-tqdm==4.67.1
-tensorboard==2.18.0
-optuna==3.6.1
-joblib==1.4.2
+scikit-learn>=1.5.2
+tqdm>=4.67.1
+tensorboard>=2.18.0
+optuna>=3.6.1
+joblib>=1.4.2
 
 # Utilities and notebooks
 pyyaml==6.0.2

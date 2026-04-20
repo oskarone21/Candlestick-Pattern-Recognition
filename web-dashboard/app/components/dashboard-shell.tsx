@@ -50,8 +50,10 @@ export function DashboardShell({
           <div className="space-y-1">
             <p className="eyebrow">Candlestick Pattern Intelligence</p>
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-lg font-semibold tracking-[0.02em] text-slate-950">Strategy Presentation Dashboard</h1>
-              {snapshot ? <Pill tone="positive">Presentation snapshot · {snapshot.meta.run_name}</Pill> : null}
+              <h1 className="text-lg font-semibold tracking-[0.02em] text-slate-950">
+                Strategy Presentation Dashboard
+              </h1>
+              {snapshot ? <Pill tone="positive">Active run | {snapshot.meta.run_name}</Pill> : null}
             </div>
           </div>
 
@@ -86,7 +88,7 @@ export function DashboardShell({
             ) : null}
           </div>
           {latestRun ? (
-            <span>Latest raw finished run updated {formatDateTime(latestRun.modifiedAt)}</span>
+            <span>Latest detected run updated {formatDateTime(latestRun.modifiedAt)}</span>
           ) : (
             <span>No completed run detected</span>
           )}
@@ -115,7 +117,7 @@ export function DashboardShell({
             ) : (
               <EmptyState
                 title="No finished run is available yet"
-                description="This dashboard only promotes completed experiment runs that have metrics, champion selections, backtest summaries, and gallery evidence. Once a full run is available, it will be picked up automatically."
+                description="This dashboard picks up the newest run with model metrics and champion selections. Backtest and gallery artifacts can appear later without blocking the first snapshot."
               />
             )}
           </motion.div>

@@ -22,7 +22,7 @@ const overviewPalette = ["#0f766e", "#ea580c", "#2563eb", "#7c3aed", "#dc2626", 
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "Overview · Candlestick Results" },
+    { title: "Overview - Candlestick Results" },
     {
       name: "description",
       content: "Executive view of the latest finished candlestick experiment run and its profitability outlook.",
@@ -44,7 +44,7 @@ export default function OverviewRoute() {
     .filter((curve) => championSet.has(curve.series_id) && presentationPatterns.includes(String(curve.pattern)))
     .map((curve, index) => ({
       id: curve.series_id,
-      label: `${humanizePattern(curve.pattern ?? "pattern")} · ${String(curve.model).toUpperCase()}`,
+      label: `${humanizePattern(curve.pattern ?? "pattern")} | ${String(curve.model).toUpperCase()}`,
       color: overviewPalette[index % overviewPalette.length],
       points: curve.points.map((point) => ({
         exit_ts: point.exit_ts,
@@ -60,13 +60,14 @@ export default function OverviewRoute() {
     .sort((left, right) => right.total_pnl - left.total_pnl || right.f1 - left.f1)
     .slice(0, 4);
   const strongestPattern = snapshot.hero.best_test_f1_pair;
+  const visiblePatternSet = new Set(presentationPatterns);
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Current Snapshot"
-        title="The selected presentation snapshot focuses on alert-ready pattern coverage, strong validated detection, and analyst workflows that save chart review time."
-        description="The homepage now prioritises high-support patterns and clean classification evidence. Profitability remains available as a backtest audit, but it no longer drives the main story."
+        title="The active run focuses on alert-ready pattern coverage, strong held-out detection, and analyst workflows that save chart review time."
+        description="The homepage highlights patterns that cleared the support gates for the current run. Profitability remains available as a backtest audit, but classification quality drives the main story."
         aside={
           <div className="grid gap-3 sm:grid-cols-2">
             <StatCard
@@ -77,7 +78,7 @@ export default function OverviewRoute() {
             />
             <StatCard
               label="Best mean F1 model"
-              value={String(snapshot.hero.best_model_by_mean_f1.model ?? "—").toUpperCase()}
+              value={String(snapshot.hero.best_model_by_mean_f1.model ?? "-").toUpperCase()}
               hint={`${formatPercent(snapshot.hero.best_model_by_mean_f1.f1)} average F1 across visible patterns.`}
               tone="neutral"
             />
@@ -98,25 +99,25 @@ export default function OverviewRoute() {
         <StatCard
           label="Visible patterns"
           value={formatNumber(snapshot.hero.patterns_covered)}
-          hint="Patterns included in the presentation snapshot."
+          hint="Patterns included in the current run view."
           tone="neutral"
         />
         <StatCard
           label="Model-pattern pairs"
           value={formatNumber(snapshot.hero.model_pair_count)}
-          hint="Visible combinations in the selected presentation snapshot."
+          hint="Visible combinations in the current run view."
           tone="neutral"
         />
         <StatCard
           label="Strongest validated pattern"
-          value={`${String(strongestPattern.model ?? "—").toUpperCase()} · ${humanizePattern(String(strongestPattern.pattern ?? "pattern"))}`}
+          value={`${String(strongestPattern.model ?? "-").toUpperCase()} | ${humanizePattern(String(strongestPattern.pattern ?? "pattern"))}`}
           hint={`${formatPercent(strongestPattern.f1)} F1 with ${formatPercent(strongestPattern.pr_auc)} PR AUC.`}
           tone="positive"
         />
         <StatCard
           label="Quality score"
           value={formatNumber(snapshot.presentation.quality_score)}
-          hint="Composite rank used to choose the presentation snapshot."
+          hint="Composite signal quality summary for the active run."
           tone="neutral"
         />
       </section>
@@ -126,7 +127,7 @@ export default function OverviewRoute() {
           <div className="grid gap-4 lg:grid-cols-2">
             {snapshot.classification.champions
               .slice()
-              .filter((champion) => champion.presentation_eligible)
+              .filter((champion) => visiblePatternSet.has(champion.pattern))
               .sort((left, right) => right.total_pnl - left.total_pnl)
               .map((champion) => (
                 <article key={champion.pattern} className="feature-card flex h-full flex-col">
@@ -196,7 +197,11 @@ export default function OverviewRoute() {
         </SectionCard>
       </section>
 
-      <SectionCard title="Champion backtest audit" kicker="Secondary Review" actions={<Pill tone="neutral">Backtest audit</Pill>}>
+      <SectionCard
+        title="Champion backtest audit"
+        kicker="Secondary Review"
+        actions={<Pill tone="neutral">Backtest audit</Pill>}
+      >
         <p className="mb-5 text-sm leading-6 text-slate-600">
           Backtests stay visible as a secondary audit layer. They help us sanity-check the signal stream, but they are
           not the core proposal story for this analyst-facing product.

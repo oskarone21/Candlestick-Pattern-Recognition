@@ -1,0 +1,83 @@
+model_selection:
+  primary_selection_metric: f1
+  precision_floor: 0.65
+  recall_floor: 0.30
+  use_conservative_selection_scores: true
+  minimum_predicted_positive_support: 14
+  minimum_true_positive_support: 8
+  per_pattern:
+    double_top:
+      precision_floor: 0.72
+      recall_floor: 0.30
+      minimum_predicted_positive_support: 16
+      minimum_true_positive_support: 9
+    double_bottom:
+      primary_selection_metric: f2
+      precision_floor: 0.60
+      recall_floor: 0.35
+      minimum_predicted_positive_support: 16
+      minimum_true_positive_support: 8
+
+evaluation:
+  minimum_validation_positive_support: 10
+  allow_low_support_champion_fallback: false
+
+training:
+  augmentation:
+    enabled: true
+    n_copies_per_positive: 2
+    gaussian_noise_std: 0.01
+    price_coherent_noise_std: 0.006
+    volume_jitter_range: 0.10
+
+labeling:
+  confirmation:
+    breakout_confirmation_pct: 0.005
+    confirm_break_within_bars: 16
+
+  labeling_policy:
+    window_anchor: post_completion_bar
+    post_completion_offset_bars: 10
+    minimum_prebreak_gap_bars: 1
+    hard_negative_sampling:
+      target_positive_to_negative_ratio: "1:4"
+
+  head_shoulders:
+    geometry:
+      shoulder_symmetry_tolerance_pct: 0.035
+      neckline_point_symmetry_tolerance_pct: 0.04
+      max_peak_separation_bars: 50
+      neckline_max_slope: 0.25
+    volume_rules:
+      required: false
+      breakout_volume_min_multiplier: 1.0
+
+  inverse_head_shoulders:
+    geometry:
+      shoulder_symmetry_tolerance_pct: 0.035
+      neckline_point_symmetry_tolerance_pct: 0.04
+      max_trough_separation_bars: 50
+      neckline_max_slope: 0.25
+    volume_rules:
+      required: false
+      breakout_volume_min_multiplier: 1.0
+
+  double_top:
+    geometry:
+      peak_tolerance_pct: 0.05
+      min_pullback_pct: 0.0005
+      prior_trend_pct: 0.002
+      max_separation_bars: 60
+    volume_rules:
+      required: false
+      breakout_volume_min_multiplier: 1.0
+
+  double_bottom:
+    geometry:
+      trough_tolerance_pct: 0.06
+      min_bounce_pct: 0.0005
+      prior_trend_pct: 0.002
+      max_separation_bars: 60
+    volume_rules:
+      required: false
+      breakout_volume_min_multiplier: 1.0

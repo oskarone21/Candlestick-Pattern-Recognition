@@ -1,0 +1,22 @@
+{
+  "head_shoulders": {
+    "tp": 12,
+    "fp": 12,
+    "fn": 12
+  },
+  "inverse_head_shoulders": {
+    "tp": 12,
+    "fp": 12,
+    "fn": 12
+  },
+  "double_top": {
+    "tp": 12,
+    "fp": 11,
+    "fn": 12
+  },
+  "double_bottom": {
+    "tp": 12,
+    "fp": 12,
+    "fn": 12
+  }
+}
