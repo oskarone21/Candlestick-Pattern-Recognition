@@ -12,10 +12,10 @@ except ImportError:
 
 ensure_repo_root()
 
-from candlestick.config import load_config
-from candlestick.domain import MODEL_TCN
-from candlestick.models.registry import predict_model_proba, train_model
-from candlestick.models.torch_common import runtime_summary
+from chart_patterns.config import load_config
+from chart_patterns.domain import MODEL_LSTM, MODEL_TCN
+from chart_patterns.models.registry import predict_model_proba, train_model
+from chart_patterns.models.torch_common import runtime_summary
 
 
 def main() -> None:
@@ -23,7 +23,7 @@ def main() -> None:
     parser.add_argument("--config", default="configs/config.yaml")
     parser.add_argument("--config-override", action="append", default=[])
     parser.add_argument("--set", dest="set_overrides", action="append", default=[])
-    parser.add_argument("--model", default=MODEL_TCN, choices=["lstm", MODEL_TCN])
+    parser.add_argument("--model", default=MODEL_TCN, choices=[MODEL_LSTM, MODEL_TCN])
     parser.add_argument("--require-cuda", action="store_true")
     args = parser.parse_args()
 

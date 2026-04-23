@@ -66,6 +66,7 @@ export type ChampionRow = {
   val_positive_support?: number;
   test_positive_support?: number;
   presentation_eligible?: boolean;
+  support_warning?: string | null;
   trades: number;
   total_pnl: number;
   win_rate: number;
@@ -137,7 +138,7 @@ export type GallerySample = {
   y_pred: number;
 };
 
-export type DashboardSnapshot = {
+export type RunSnapshot = {
   meta: {
     run_name: string;
     generated_at: string;
@@ -149,6 +150,12 @@ export type DashboardSnapshot = {
     };
     models: string[];
     patterns: string[];
+    artifact_availability: {
+      metrics: boolean;
+      backtest: boolean;
+      gallery: boolean;
+      fully_finished: boolean;
+    };
   };
   hero: {
     patterns_covered: number;
@@ -167,7 +174,6 @@ export type DashboardSnapshot = {
     presentation_eligible: boolean;
     visible_patterns: string[];
     hidden_patterns: string[];
-    quality_score: number;
     presentation_reason: string;
     mean_visible_champion_f1: number;
     mean_visible_champion_pr_auc: number;
@@ -176,6 +182,16 @@ export type DashboardSnapshot = {
     summary_rows: ClassificationRow[];
     detail_rows: ClassificationDetailRow[];
     champions: ChampionRow[];
+  };
+  historical: {
+    model_family_rows: Array<{
+      model: string;
+      mean_f1: number;
+      mean_precision: number;
+      mean_recall: number;
+      source_run: string;
+      patterns_covered: number;
+    }>;
   };
   backtest: {
     champion_rows: ChampionRow[];
@@ -188,6 +204,20 @@ export type DashboardSnapshot = {
     summary: Record<string, unknown>;
     samples: Record<string, Record<string, GallerySample[]>>;
   };
+};
+
+export type DashboardSnapshot = RunSnapshot & {
+  historical: {
+    model_family_rows: Array<{
+      model: string;
+      mean_f1: number;
+      mean_precision: number;
+      mean_recall: number;
+      source_run: string;
+      patterns_covered: number;
+    }>;
+  };
+  audit?: RunSnapshot | null;
 };
 
 export type MetricKey = "f1" | "precision" | "recall" | "pr_auc";
@@ -347,32 +377,64 @@ export function averageByModel(rows: ClassificationRow[]) {
     .sort((left, right) => right.f1 - left.f1);
 }
 
-export function visiblePatterns(snapshot: DashboardSnapshot) {
+export function visiblePatterns(snapshot: RunSnapshot) {
   return snapshot.presentation ? snapshot.presentation.visible_patterns : snapshot.meta.patterns;
 }
 
-export function hiddenPatterns(snapshot: DashboardSnapshot) {
+export function hiddenPatterns(snapshot: RunSnapshot) {
   return snapshot.presentation?.hidden_patterns ?? [];
 }
 
-export function visibleSummaryRows(snapshot: DashboardSnapshot) {
+export function visibleSummaryRows(snapshot: RunSnapshot) {
   const visible = new Set(visiblePatterns(snapshot));
   return snapshot.classification.summary_rows.filter((row) => visible.has(row.pattern));
 }
 
-export function visiblePairRows(snapshot: DashboardSnapshot) {
+export function visiblePairRows(snapshot: RunSnapshot) {
   const visible = new Set(visiblePatterns(snapshot));
   return snapshot.backtest.pair_rows.filter((row) => visible.has(row.pattern));
+}
+
+export function historicalModelRows(snapshot: DashboardSnapshot) {
+  return snapshot.historical?.model_family_rows ?? [];
+}
+
+export function auditSnapshot(snapshot: DashboardSnapshot): RunSnapshot {
+  return snapshot.audit ?? snapshot;
 }
 
 export function patternModelSeriesId(pattern: string, model: string) {
   return `${model}::${pattern}`;
 }
 
-export function championSeriesIds(snapshot: DashboardSnapshot) {
+export function championSeriesIds(snapshot: RunSnapshot) {
   return new Set(
     snapshot.classification.champions.map((row) => patternModelSeriesId(row.pattern, row.model)),
   );
+}
+
+export function primaryChampionAuditRows(snapshot: DashboardSnapshot): BacktestPairRow[] {
+  const primaryVisiblePatterns = new Set(visiblePatterns(snapshot));
+  const championKeys = snapshot.classification.champions
+    .filter((row) => row.presentation_eligible !== false && primaryVisiblePatterns.has(row.pattern))
+    .map((row) => patternModelSeriesId(row.pattern, row.model));
+
+  const auditRows = new Map(
+    auditSnapshot(snapshot).backtest.pair_rows
+      .filter((row) => primaryVisiblePatterns.has(row.pattern))
+      .map((row) => [patternModelSeriesId(row.pattern, row.model), row]),
+  );
+
+  return championKeys
+    .map((key) => auditRows.get(key))
+    .filter((row): row is BacktestPairRow => Boolean(row));
+}
+
+export function primaryChampionAuditCurves(snapshot: DashboardSnapshot): CurveSeries[] {
+  const auditCurveIds = new Set(
+    primaryChampionAuditRows(snapshot).map((row) => patternModelSeriesId(row.pattern, row.model)),
+  );
+  return auditSnapshot(snapshot).backtest.pair_curves.filter((curve) => auditCurveIds.has(curve.series_id));
 }
 
 export function sum(values: number[]) {

@@ -1,0 +1,36 @@
+labeling:
+  confirmation:
+    breakout_confirmation_pct: 0.0025
+    confirm_break_within_bars: 12
+
+  head_shoulders:
+    geometry:
+      shoulder_symmetry_tolerance_pct: 0.05
+      neckline_point_symmetry_tolerance_pct: 0.05
+      neckline_max_slope: 0.35
+    volume_rules:
+      required: false
+
+  inverse_head_shoulders:
+    geometry:
+      shoulder_symmetry_tolerance_pct: 0.05
+      neckline_point_symmetry_tolerance_pct: 0.05
+      neckline_max_slope: 0.35
+    volume_rules:
+      required: false
+
+  double_top:
+    geometry:
+      peak_tolerance_pct: 0.05
+      min_pullback_pct: 0.0005
+      prior_trend_pct: 0.002
+    volume_rules:
+      breakout_volume_min_multiplier: 1.1
+
+  double_bottom:
+    geometry:
+      trough_tolerance_pct: 0.05
+      min_bounce_pct: 0.0005
+      prior_trend_pct: 0.002
+    volume_rules:
+      breakout_volume_min_multiplier: 1.1

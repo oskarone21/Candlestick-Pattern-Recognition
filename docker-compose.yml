@@ -3,8 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: candlestick-cnn:latest
-    container_name: candlestick-cnn
+    image: chart-patterns-cnn:latest
+    container_name: chart-patterns-cnn
     working_dir: /workspace
     volumes:
       - ./:/workspace

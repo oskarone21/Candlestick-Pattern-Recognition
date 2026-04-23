@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from candlestick.trading.backtest import run_backtest_for_predictions
+from chart_patterns.trading.backtest import run_backtest_for_predictions
 
 
 def test_backtest_arithmetic_hits_tp(base_cfg):

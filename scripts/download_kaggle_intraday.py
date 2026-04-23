@@ -9,10 +9,10 @@ except ImportError:
 
 ensure_repo_root()
 
-from candlestick.config import load_config
-from candlestick.data.kaggle_ingest import load_kaggle_dataframe, save_raw_csv
-from candlestick.data.raw_quality import build_raw_quality_report, write_raw_quality_report
-from candlestick.project_utils import instrument_from_cfg
+from chart_patterns.config import load_config
+from chart_patterns.data.kaggle_ingest import load_kaggle_dataframe, save_raw_csv
+from chart_patterns.data.raw_quality import build_raw_quality_report, write_raw_quality_report
+from chart_patterns.project_utils import instrument_from_cfg
 
 
 def main() -> None:

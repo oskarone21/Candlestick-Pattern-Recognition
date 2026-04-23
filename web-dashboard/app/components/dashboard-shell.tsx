@@ -50,8 +50,8 @@ export function DashboardShell({
           <div className="space-y-1">
             <p className="eyebrow">Candlestick Pattern Intelligence</p>
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-lg font-semibold tracking-[0.02em] text-slate-950">Strategy Presentation Dashboard</h1>
-              {snapshot ? <Pill tone="positive">Presentation snapshot · {snapshot.meta.run_name}</Pill> : null}
+              <h1 className="text-lg font-semibold tracking-[0.02em] text-slate-950">Reproducible Results Dashboard</h1>
+              {snapshot ? <Pill tone="positive">Selected snapshot · {snapshot.meta.run_name}</Pill> : null}
             </div>
           </div>
 
@@ -76,19 +76,19 @@ export function DashboardShell({
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 pb-4 text-xs text-slate-500 sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center gap-2">
             <Pill tone="neutral">
-              {snapshot ? `${formatNumber(snapshot.meta.models.length)} evaluated models` : "Waiting for a finished run"}
+              {snapshot ? `${formatNumber(snapshot.meta.models.length)} models in focused snapshot` : "Waiting for a metrics snapshot"}
             </Pill>
             <Pill tone="neutral">
-              {snapshot ? `${formatNumber(presentationPatterns.length)} presentation patterns` : "No classification snapshot yet"}
+              {snapshot ? `${formatNumber(presentationPatterns.length)} supported patterns` : "No classification snapshot yet"}
             </Pill>
             {snapshot && lowSupportHiddenPatterns.length > 0 ? (
               <Pill tone="caution">{`${formatNumber(lowSupportHiddenPatterns.length)} hidden for low support`}</Pill>
             ) : null}
           </div>
           {latestRun ? (
-            <span>Latest raw finished run updated {formatDateTime(latestRun.modifiedAt)}</span>
+            <span>Latest fully finished run updated {formatDateTime(latestRun.modifiedAt)}</span>
           ) : (
-            <span>No completed run detected</span>
+            <span>No fully finished run detected</span>
           )}
         </div>
         <div className="h-0.5 overflow-hidden bg-slate-200/60">
@@ -114,8 +114,8 @@ export function DashboardShell({
               children
             ) : (
               <EmptyState
-                title="No finished run is available yet"
-                description="This dashboard only promotes completed experiment runs that have metrics, champion selections, backtest summaries, and gallery evidence. Once a full run is available, it will be picked up automatically."
+                title="No metrics snapshot is available yet"
+                description="This dashboard can render a metrics-first snapshot and optionally layer backtest and gallery evidence on top. Once a metrics snapshot is available, it will be picked up automatically."
               />
             )}
           </motion.div>

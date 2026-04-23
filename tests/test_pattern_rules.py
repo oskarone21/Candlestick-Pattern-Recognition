@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from candlestick.labeling.pattern_rules import detect_pattern_events
+from chart_patterns.labeling.pattern_rules import detect_pattern_events
 
 
 def _df_from_close(close_values: list[float]) -> pd.DataFrame:

@@ -153,9 +153,19 @@ body::before {
   .metric-value {
     color: var(--color-ink);
     @apply mt-3 text-3xl font-semibold tracking-[-0.04em];
-    line-height: 0.94;
+    line-height: 0.98;
+    font-size: clamp(1.55rem, 2.6vw, 2.5rem);
     max-inline-size: 100%;
     overflow-wrap: anywhere;
+    white-space: normal;
+    text-wrap: balance;
+  }
+
+  .metric-value-multiline {
+    font-size: clamp(1.45rem, 2.2vw, 2.15rem);
+    line-height: 1;
+    overflow-wrap: anywhere;
+    white-space: normal;
     text-wrap: balance;
   }
 

@@ -15,12 +15,13 @@ except ImportError:
 
 ensure_repo_root()
 
-from candlestick.benchmarks.synthetic_canary import SYNTHETIC_CANARY_TIERS, build_synthetic_canary_dataset
-from candlestick.config import load_config
-from candlestick.eval.calibration import apply_probability_calibrator
-from candlestick.eval.classification import evaluate_threshold_metrics
-from candlestick.features.tabular import flatten_sequence_features
-from candlestick.models.registry import load_model, predict_model_proba
+from chart_patterns.benchmarks.synthetic_canary import SYNTHETIC_CANARY_TIERS, build_synthetic_canary_dataset
+from chart_patterns.config import load_config
+from chart_patterns.domain import CLASSICAL_MODEL_NAMES
+from chart_patterns.eval.calibration import apply_probability_calibrator
+from chart_patterns.eval.classification import evaluate_threshold_metrics
+from chart_patterns.features.tabular import flatten_sequence_features
+from chart_patterns.models.registry import load_model, predict_model_proba
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -56,7 +57,7 @@ def _predict_probabilities(
     X: np.ndarray,
 ) -> np.ndarray:
     model = load_model(model_name, artifact_path)
-    X_input = flatten_sequence_features(X) if model_name in {"logreg", "hgb"} else X
+    X_input = flatten_sequence_features(X) if model_name in CLASSICAL_MODEL_NAMES else X
     raw_prob = predict_model_proba(model_name, model, X_input)
     calibrator = {"method": "identity", "fitted": False}
     if calibrator_path.exists():

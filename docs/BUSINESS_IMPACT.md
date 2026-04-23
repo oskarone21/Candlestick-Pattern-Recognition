@@ -1,6 +1,6 @@
 # Business Impact Narrative (IntelliSys Consultancy Prototype)
 
-This document connects the technical prototype to the IntelliSys consultancy brief in [BRIEF.MD](../BRIEF.MD).
+This document connects the technical prototype to the IntelliSys consultancy brief in [BRIEF.md](BRIEF.md).
 
 ## Positioning
 

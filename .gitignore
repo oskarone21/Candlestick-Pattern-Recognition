@@ -1,5 +1,7 @@
 # OS files
 .DS_Store
+.idea/
+.ralphy/
 
 # Python caches and virtual environments
 __pycache__/
@@ -13,6 +15,7 @@ venv/
 
 # Jupyter
 .ipynb_checkpoints/
+notebooks/outputs/
 
 # Local experiment overrides (keep shared config tracked)
 configs/local/*.yaml
@@ -20,8 +23,10 @@ configs/local/*.yaml
 # Large/private datasets
 data/nq_1min.csv
 data/QQQ_1d.csv
+data/spy_15min_clean.csv
 data/raw/*.csv
 data/processed/*.csv
+!data/processed/spy_15m.csv
 
 # Generated artifacts
 outputs/

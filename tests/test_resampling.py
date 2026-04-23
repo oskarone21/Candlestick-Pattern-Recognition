@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from candlestick.data.clean_resample import clean_ohlcv, resample_ohlcv
+from chart_patterns.data.clean_resample import clean_ohlcv, resample_ohlcv
 
 
 def test_resample_1m_to_15m_aggregation():

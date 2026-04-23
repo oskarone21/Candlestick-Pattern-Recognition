@@ -5,9 +5,9 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from candlestick.config import load_config
-from candlestick.datasets.window_builder import build_pattern_dataset
-from candlestick.labeling.pattern_rules import detect_pattern_events
+from chart_patterns.config import load_config
+from chart_patterns.datasets.window_builder import build_pattern_dataset
+from chart_patterns.labeling.pattern_rules import detect_pattern_events
 from scripts.run_experiment_suite import _prepare_split
 
 
@@ -15,10 +15,10 @@ from scripts.run_experiment_suite import _prepare_split
     not Path("data/processed/spy_15m.csv").exists(),
     reason="Prepared SPY 15m dataset not available.",
 )
-def test_intraday_balanced_profile_yields_positives_for_all_patterns():
+def test_balanced_profile_yields_positives_for_all_patterns():
     cfg = load_config(
         "configs/config.yaml",
-        ["configs/overrides/intraday_balanced.yaml"],
+        ["configs/overrides/balanced.yaml"],
         [],
     )
     df = pd.read_csv("data/processed/spy_15m.csv")

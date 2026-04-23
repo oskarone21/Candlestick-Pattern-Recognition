@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from candlestick.domain import MODEL_HGB, MODEL_LOGREG, MODEL_LSTM, MODEL_TCN, MODEL_TRANSFORMER
-from candlestick.models.registry import LOADERS, PREDICTORS, SAVERS, TRAINERS, load_model, predict_model_proba, save_model, train_model
+from chart_patterns.domain import MODEL_HGB, MODEL_LOGREG, MODEL_LSTM, MODEL_TCN, MODEL_TRANSFORMER
+from chart_patterns.models.registry import LOADERS, PREDICTORS, SAVERS, TRAINERS, load_model, predict_model_proba, save_model, train_model
 
 
 def test_registry_maps_stay_in_sync():

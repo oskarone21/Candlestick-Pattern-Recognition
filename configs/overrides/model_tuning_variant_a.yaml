@@ -1,0 +1,7 @@
+model_selection:
+  use_conservative_selection_scores: true
+  minimum_predicted_positive_support: 0
+  minimum_true_positive_support: 0
+
+evaluation:
+  allow_low_support_champion_fallback: false

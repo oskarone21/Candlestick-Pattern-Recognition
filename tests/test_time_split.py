@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from candlestick.split.time_split import time_based_split
+from chart_patterns.split.time_split import time_based_split
 
 
 def test_time_based_split_with_embargo_has_no_overlap():

@@ -13,20 +13,13 @@ except ImportError:
 
 ensure_repo_root()
 
-from candlestick.config import ensure_dir, load_config
-from candlestick.project_utils import load_processed_prices, run_name_from_cfg
-from candlestick.viz.pattern_gallery import render_pattern_gallery
+from chart_patterns.config import ensure_dir, load_config
+from chart_patterns.domain import DEFAULT_DECISION_THRESHOLD
+from chart_patterns.project_utils import load_processed_prices, run_name_from_cfg
+from chart_patterns.viz.pattern_gallery import render_pattern_gallery
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Render TP/FP/FN chart galleries for champion predictions")
-    parser.add_argument("--config", default="configs/config.yaml")
-    parser.add_argument("--config-override", action="append", default=[])
-    parser.add_argument("--set", dest="set_overrides", action="append", default=[])
-    args = parser.parse_args()
-
-    cfg = load_config(args.config, args.config_override, args.set_overrides)
-
+def render_gallery(cfg: dict[str, object]) -> dict[str, object]:
     run_name = run_name_from_cfg(cfg)
     metrics_root = Path(cfg["paths"].get("metrics_dir", "outputs/metrics")) / run_name
     champions_path = metrics_root / "champions.csv"
@@ -45,7 +38,7 @@ def main() -> None:
     for _, row in champions.iterrows():
         pattern = str(row["pattern"])
         pred_path = Path(row["predictions_path"])
-        threshold = float(row.get("threshold", 0.5))
+        threshold = float(row.get("threshold", DEFAULT_DECISION_THRESHOLD))
 
         if not pred_path.exists():
             continue
@@ -67,6 +60,22 @@ def main() -> None:
         json.dump(counts, f, indent=2)
 
     print(f"Pattern gallery generated at: {gallery_root}")
+    return {
+        "run_name": run_name,
+        "gallery_root": str(gallery_root),
+        "counts": counts,
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Render TP/FP/FN chart galleries for champion predictions")
+    parser.add_argument("--config", default="configs/config.yaml")
+    parser.add_argument("--config-override", action="append", default=[])
+    parser.add_argument("--set", dest="set_overrides", action="append", default=[])
+    args = parser.parse_args()
+
+    cfg = load_config(args.config, args.config_override, args.set_overrides)
+    render_gallery(cfg)
 
 
 if __name__ == "__main__":

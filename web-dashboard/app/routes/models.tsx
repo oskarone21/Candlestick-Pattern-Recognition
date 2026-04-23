@@ -8,6 +8,7 @@ import {
   formatPercent,
   formatNumber,
   hiddenPatterns,
+  historicalModelRows,
   humanizePattern,
   metricLabels,
   type MetricKey,
@@ -21,7 +22,7 @@ export function meta({}: Route.MetaArgs) {
     { title: "Models · Candlestick Results" },
     {
       name: "description",
-      content: "Classification performance matrix, confidence intervals, and per-model drilldowns.",
+      content: "Classification performance matrix, confidence intervals, and per-model drilldowns for the supported subset of the latest run.",
     },
   ];
 }
@@ -40,11 +41,13 @@ export default function ModelsRoute() {
     return null;
   }
 
-  const presentationPatterns = visiblePatterns(snapshot);
-  const lowSupportHiddenPatterns = hiddenPatterns(snapshot);
-  const summaryRows = visibleSummaryRows(snapshot);
+  const matrixSnapshot = snapshot.audit ?? snapshot;
+  const presentationPatterns = visiblePatterns(matrixSnapshot);
+  const lowSupportHiddenPatterns = hiddenPatterns(matrixSnapshot);
+  const summaryRows = visibleSummaryRows(matrixSnapshot);
+  const historicalRows = historicalModelRows(snapshot);
   const detailLookup = new Map(
-    snapshot.classification.detail_rows.map((row) => [`${row.pattern}::${row.model}`, row]),
+    matrixSnapshot.classification.detail_rows.map((row) => [`${row.pattern}::${row.model}`, row]),
   );
   const modelAverages = averageByModel(summaryRows);
 
@@ -52,8 +55,8 @@ export default function ModelsRoute() {
     <div className="space-y-8">
       <PageHeader
         eyebrow="Classification Layer"
-        title="Model selection stays anchored in validation discipline, then gets audited through high-support test-time precision, recall, and PR AUC."
-        description="This page only promotes patterns that cleared the presentation support gates. Low-support rows stay in the raw artifacts, but they do not take space in the proposal-facing matrix."
+        title="The matrix now uses the finished audit run so every model family is visible, while the TCN-led focused snapshot remains the main classification headline elsewhere."
+        description={`Pattern × model scores below come from ${matrixSnapshot.meta.run_name}. The broader historical leaderboard still shows the additional compare-all runs for context.`}
         aside={
           <div className="grid gap-3 sm:grid-cols-2">
             {modelAverages.slice(0, 2).map((row) => (
@@ -70,9 +73,9 @@ export default function ModelsRoute() {
       />
 
       {lowSupportHiddenPatterns.length > 0 ? (
-        <SectionCard title="Support gate" kicker="Hidden Patterns">
+        <SectionCard title="Support floor" kicker="Hidden Patterns">
           <p className="text-sm leading-6 text-slate-600">
-            Hidden from the proposal matrix because validation or test support is too low:{" "}
+            Hidden from the main matrix because validation or test support stayed below the configured floor:{" "}
             {lowSupportHiddenPatterns.map((pattern) => humanizePattern(pattern)).join(", ")}.
           </p>
         </SectionCard>
@@ -102,7 +105,7 @@ export default function ModelsRoute() {
                 <Pill tone="neutral">{metricLabels[metric]}</Pill>
               </div>
               <div className="grid gap-2">
-                {snapshot.meta.models.map((model) => {
+                {matrixSnapshot.meta.models.map((model) => {
                   const row = summaryRows.find((candidate) => candidate.pattern === pattern && candidate.model === model);
                   if (!row) {
                     return null;
@@ -125,7 +128,7 @@ export default function ModelsRoute() {
         </div>
       </SectionCard>
 
-      <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+      <section className="grid gap-6">
         <SectionCard title="Model leaderboard" kicker="Mean performance across patterns">
           <div className="space-y-3">
             {modelAverages.map((row, index) => (
@@ -199,6 +202,35 @@ export default function ModelsRoute() {
           </div>
         </SectionCard>
       </section>
+
+      <SectionCard title="Historical compare-all leaderboard" kicker="Context Across Runs">
+        <div className="overflow-auto rounded-[1.5rem] border border-white/60">
+          <table className="min-w-full text-left text-sm">
+            <thead className="bg-slate-950 text-white">
+              <tr>
+                <th className="px-4 py-3 font-medium">Source run</th>
+                <th className="px-4 py-3 font-medium">Model</th>
+                <th className="px-4 py-3 font-medium">Mean F1</th>
+                <th className="px-4 py-3 font-medium">Precision</th>
+                <th className="px-4 py-3 font-medium">Recall</th>
+                <th className="px-4 py-3 font-medium">Patterns covered</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 bg-white/75">
+              {historicalRows.map((row) => (
+                <tr key={`${row.source_run}-${row.model}`} className="hover:bg-white">
+                  <td className="px-4 py-3 text-slate-700">{row.source_run}</td>
+                  <td className="px-4 py-3 font-semibold uppercase tracking-[0.14em] text-slate-950">{row.model}</td>
+                  <td className="px-4 py-3 text-slate-700">{formatPercent(row.mean_f1)}</td>
+                  <td className="px-4 py-3 text-slate-700">{formatPercent(row.mean_precision)}</td>
+                  <td className="px-4 py-3 text-slate-700">{formatPercent(row.mean_recall)}</td>
+                  <td className="px-4 py-3 text-slate-700">{formatNumber(row.patterns_covered)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
 
       <SectionCard title="Detailed comparison table" kicker="Full Scoreboard">
         <div className="overflow-auto rounded-[1.5rem] border border-white/60">

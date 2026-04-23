@@ -1,0 +1,2 @@
+model:
+  sequence_normalization_mode: window_minmax

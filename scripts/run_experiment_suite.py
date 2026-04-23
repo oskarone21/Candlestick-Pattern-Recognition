@@ -21,9 +21,9 @@ except ImportError:
 
 ensure_repo_root()
 
-from candlestick.config import ensure_dir, load_config
-from candlestick.datasets.window_builder import build_pattern_dataset, save_pattern_dataset
-from candlestick.domain import (
+from chart_patterns.config import ensure_dir, load_config
+from chart_patterns.datasets.window_builder import build_pattern_dataset, save_pattern_dataset
+from chart_patterns.domain import (
     CALIBRATED_MODEL_NAMES,
     COLUMN_CLOSE,
     COLUMN_HIGH,
@@ -39,37 +39,38 @@ from candlestick.domain import (
     MODEL_LOGREG,
     SELECTION_SPLIT_VAL,
 )
-from candlestick.eval.calibration import (
+from chart_patterns.eval.calibration import (
     apply_probability_calibrator,
     calibration_diagnostics,
     fit_probability_calibrator,
 )
-from candlestick.eval.classification import (
+from chart_patterns.eval.classification import (
     attach_confidence_intervals,
     choose_threshold,
     evaluate_threshold_metrics,
-    metric_value,
+    selection_metric_value,
     save_metrics_report,
 )
-from candlestick.eval.label_sanity import (
+from chart_patterns.eval.label_sanity import (
     label_sanity_issues,
     summarize_pattern_dataset,
     summarize_pattern_events,
     summarize_processed_prices,
     summarize_split_support,
 )
-from candlestick.features.tabular import flatten_sequence_features
-from candlestick.labeling.pattern_rules import detect_pattern_events
-from candlestick.models.registry import predict_model_proba, save_model, train_model
-from candlestick.models.torch_common import runtime_summary
-from candlestick.optuna.search import OptunaUnavailableError, tune_model
-from candlestick.project_utils import (
+from chart_patterns.features.tabular import flatten_sequence_features
+from chart_patterns.labeling.pattern_rules import detect_pattern_events
+from chart_patterns.models.registry import predict_model_proba, save_model, train_model
+from chart_patterns.models.torch_common import runtime_summary
+from chart_patterns.optuna.search import OptunaUnavailableError, tune_model
+from chart_patterns.project_utils import (
     allowed_patterns_from_cfg,
     candidate_models_from_cfg,
     load_processed_prices,
+    model_selection_from_cfg,
     run_name_from_cfg,
 )
-from candlestick.split.time_split import assign_split_column, time_based_split
+from chart_patterns.split.time_split import assign_split_column, time_based_split
 
 
 SUMMARY_COLUMNS = [
@@ -685,12 +686,20 @@ def _select_pattern_champion(
     model_results: list[ModelResult],
     primary_metric: str,
     min_val_support: int,
+    conservative_selection: bool,
+    allow_low_support_fallback: bool,
 ) -> ModelResult | None:
     best_supported: ModelResult | None = None
     best_any: ModelResult | None = None
 
     for result in model_results:
-        score = float(metric_value(result["val_metrics"], primary_metric))
+        score = float(
+            selection_metric_value(
+                result["val_metrics"],
+                primary_metric,
+                conservative=conservative_selection,
+            )
+        )
         support_ok = result["val_metrics"]["support"]["positive"] >= min_val_support
         candidate: ModelResult = {**result, "selection_score": score}
 
@@ -699,13 +708,18 @@ def _select_pattern_champion(
         if support_ok and (best_supported is None or score > best_supported["selection_score"]):
             best_supported = candidate
 
-    return best_supported or best_any
+    if best_supported is not None:
+        return best_supported
+    if allow_low_support_fallback:
+        return best_any
+    return None
 
 
 def _build_summary_row(
     pattern: str,
     model_name: str,
     primary_metric: str,
+    conservative_selection: bool,
     threshold: float,
     val_metrics: dict[str, Any],
     test_metrics: dict[str, Any],
@@ -715,7 +729,9 @@ def _build_summary_row(
         "model": model_name,
         "selection_split": SELECTION_SPLIT_VAL,
         "selection_metric": primary_metric,
-        "selection_metric_value": float(metric_value(val_metrics, primary_metric)),
+        "selection_metric_value": float(
+            selection_metric_value(val_metrics, primary_metric, conservative=conservative_selection)
+        ),
         "selection_precision": float(val_metrics["precision"]),
         "selection_recall": float(val_metrics["recall"]),
         "selection_f1": float(val_metrics["f1"]),
@@ -801,15 +817,19 @@ def _evaluate_model(
         test_prob_raw=test_prob_raw,
     )
 
-    model_selection_cfg = cfg.get("model_selection", {})
+    model_selection_cfg = model_selection_from_cfg(cfg, pattern=pattern)
     primary_metric = str(model_selection_cfg.get("primary_selection_metric", METRIC_F1)).lower()
+    conservative_selection = bool(model_selection_cfg.get("use_conservative_selection_scores", False))
     threshold, threshold_diag = choose_threshold(
         y_true=split_data["y_val"],
         y_prob=val_prob,
         precision_floor=float(model_selection_cfg.get("precision_floor", 0.0)),
         recall_floor=float(model_selection_cfg.get("recall_floor", 0.0)),
+        minimum_predicted_positive_support=int(model_selection_cfg.get("minimum_predicted_positive_support", 0)),
+        minimum_true_positive_support=int(model_selection_cfg.get("minimum_true_positive_support", 0)),
         primary_metric=primary_metric,
         grid_size=int(cfg.get("evaluation", {}).get("threshold_grid_size", 181)),
+        conservative_selection=conservative_selection,
     )
     val_metrics = evaluate_threshold_metrics(split_data["y_val"], val_prob, threshold)
     test_metrics = evaluate_threshold_metrics(split_data["y_test"], test_prob, threshold)
@@ -833,7 +853,9 @@ def _evaluate_model(
     report["artifact_path"] = str(model_path)
     report["postprocess_path"] = str(postprocess_path)
     report["selection_metric"] = primary_metric
-    report["selection_value"] = float(metric_value(val_metrics, primary_metric))
+    report["selection_value"] = float(
+        selection_metric_value(val_metrics, primary_metric, conservative=conservative_selection)
+    )
     report["selection_metrics"] = val_metrics
     report["threshold_diagnostics"] = threshold_diag
     report["calibration"] = calibration
@@ -870,6 +892,7 @@ def _evaluate_model(
         pattern=pattern,
         model_name=model_name,
         primary_metric=primary_metric,
+        conservative_selection=conservative_selection,
         threshold=threshold,
         val_metrics=val_metrics,
         test_metrics=test_metrics,
@@ -881,7 +904,9 @@ def _evaluate_model(
         "val_metrics": val_metrics,
         "test_metrics": test_metrics,
         "pred_df": test_pred_df,
-        "selection_score": float(metric_value(val_metrics, primary_metric)),
+        "selection_score": float(
+            selection_metric_value(val_metrics, primary_metric, conservative=conservative_selection)
+        ),
     }
     return result, summary_row
 
@@ -950,10 +975,19 @@ def _run_pattern(
         model_results.append(model_result)
         summary_rows.append(summary_row)
 
-    primary_metric = str(cfg.get("model_selection", {}).get("primary_selection_metric", METRIC_F1)).lower()
+    selection_cfg = model_selection_from_cfg(cfg, pattern=pattern)
+    primary_metric = str(selection_cfg.get("primary_selection_metric", METRIC_F1)).lower()
+    conservative_selection = bool(selection_cfg.get("use_conservative_selection_scores", False))
     min_support = int(cfg.get("evaluation", {}).get("minimum_test_positive_support", 5))
     min_val_support = int(cfg.get("evaluation", {}).get("minimum_validation_positive_support", min_support))
-    champion = _select_pattern_champion(model_results, primary_metric=primary_metric, min_val_support=min_val_support)
+    allow_low_support_fallback = bool(cfg.get("evaluation", {}).get("allow_low_support_champion_fallback", False))
+    champion = _select_pattern_champion(
+        model_results,
+        primary_metric=primary_metric,
+        min_val_support=min_val_support,
+        conservative_selection=conservative_selection,
+        allow_low_support_fallback=allow_low_support_fallback,
+    )
     if champion is None:
         return summary_rows, None, pattern_sanity
 
@@ -1033,7 +1067,7 @@ def run_experiment_suite(cfg: dict[str, Any], smoke: bool = False) -> dict[str, 
     prices = _load_prices(cfg, smoke=smoke)
     repro_manifest = _build_repro_manifest(cfg, runtime, prices, smoke=smoke)
     _save_json(roots.metrics_root / "repro_manifest.json", repro_manifest)
-    primary_metric = str(cfg.get("model_selection", {}).get("primary_selection_metric", METRIC_F1)).lower()
+    primary_metric = str(model_selection_from_cfg(cfg).get("primary_selection_metric", METRIC_F1)).lower()
     run_label_sanity: dict[str, Any] = {
         "run_name": run_name_from_cfg(cfg),
         "smoke": bool(smoke),

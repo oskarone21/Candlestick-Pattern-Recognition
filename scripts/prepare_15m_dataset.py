@@ -13,20 +13,20 @@ except ImportError:
 
 ensure_repo_root()
 
-from candlestick.config import ensure_dir, load_config
-from candlestick.data.clean_resample import clean_ohlcv, drop_exact_duplicate_ohlcv, resample_ohlcv
-from candlestick.data.kaggle_ingest import load_kaggle_dataframe, save_raw_csv
-from candlestick.data.session_quality import validate_intraday_by_session_calendar
-from candlestick.data.timezone_audit import normalize_and_audit_timezone, write_timezone_report
-from candlestick.domain import (
+from chart_patterns.config import ensure_dir, load_config
+from chart_patterns.data.clean_resample import clean_ohlcv, drop_exact_duplicate_ohlcv, resample_ohlcv
+from chart_patterns.data.kaggle_ingest import load_kaggle_dataframe, save_raw_csv
+from chart_patterns.data.session_quality import validate_intraday_by_session_calendar
+from chart_patterns.data.timezone_audit import normalize_and_audit_timezone, write_timezone_report
+from chart_patterns.domain import (
     DEFAULT_EARLY_CLOSE_END,
     DEFAULT_INSTRUMENT,
     DEFAULT_MARKET_CALENDAR,
     DEFAULT_SESSION_END,
     DEFAULT_SESSION_START,
 )
-from candlestick.eval.label_sanity import summarize_processed_prices
-from candlestick.project_utils import timeframe_to_minutes, working_timezone_from_cfg
+from chart_patterns.eval.label_sanity import summarize_processed_prices
+from chart_patterns.project_utils import timeframe_to_minutes, working_timezone_from_cfg
 
 
 def _read_or_download_raw(cfg: dict, refresh_raw: bool = False) -> pd.DataFrame:

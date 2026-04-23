@@ -1,0 +1,34 @@
+model_selection:
+  candidate_models:
+    - tcn
+    - lstm
+  primary_selection_metric: f1
+  precision_floor: 0.65
+  recall_floor: 0.30
+  use_conservative_selection_scores: true
+  minimum_predicted_positive_support: 14
+  minimum_true_positive_support: 8
+  per_pattern:
+    double_top:
+      precision_floor: 0.72
+      recall_floor: 0.30
+      minimum_predicted_positive_support: 16
+      minimum_true_positive_support: 9
+    double_bottom:
+      primary_selection_metric: f2
+      precision_floor: 0.60
+      recall_floor: 0.35
+      minimum_predicted_positive_support: 16
+      minimum_true_positive_support: 8
+
+evaluation:
+  minimum_validation_positive_support: 10
+  allow_low_support_champion_fallback: false
+
+training:
+  augmentation:
+    enabled: true
+    n_copies_per_positive: 2
+    gaussian_noise_std: 0.01
+    price_coherent_noise_std: 0.006
+    volume_jitter_range: 0.10

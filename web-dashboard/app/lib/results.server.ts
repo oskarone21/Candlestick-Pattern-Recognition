@@ -17,10 +17,11 @@ const galleryRoot = path.join(outputsRoot, "gallery");
 const generatedRoot = path.join(repoRoot, "web-dashboard", ".generated");
 const builderScript = path.join(repoRoot, "scripts", "build_results_dashboard.py");
 const defaultConfigPath = path.join(repoRoot, "configs", "config.yaml");
+const dashboardConfigModule = "chart_patterns.config";
 const builderDependencies = [
   builderScript,
   defaultConfigPath,
-  path.join(repoRoot, "candlestick", "trading", "backtest.py"),
+  path.join(repoRoot, "chart_patterns", "trading", "backtest.py"),
 ];
 
 type RequiredSources = {
@@ -28,6 +29,18 @@ type RequiredSources = {
   champions: string;
   backtestSummary: string;
   gallerySummary: string;
+};
+
+type DashboardRunCandidate = {
+  runName: string;
+  modifiedAt: string;
+  sourcePaths: RequiredSources;
+};
+
+type DashboardRunConfig = {
+  primaryRunName: string | null;
+  artifactRunName: string | null;
+  comparisonRunNames: string[];
 };
 
 function toPosixRelative(absolutePath: string) {
@@ -55,6 +68,27 @@ async function pathExists(filePath: string) {
 async function latestSourceMtimeMs(paths: string[]) {
   const stats = await Promise.all(paths.map((filePath) => fs.stat(filePath)));
   return Math.max(...stats.map((stat) => stat.mtimeMs));
+}
+
+async function loadDashboardRunConfig(configPath = defaultConfigPath) {
+  const { stdout } = await execFileAsync(
+    "python",
+    [
+      "-c",
+      [
+        `from ${dashboardConfigModule} import load_config`,
+        "import json",
+        "import sys",
+        "cfg = load_config(sys.argv[1])",
+        "dashboard = cfg.get('dashboard', {})",
+        "print(json.dumps({'primaryRunName': dashboard.get('primary_run_name'), 'artifactRunName': dashboard.get('artifact_run_name'), 'comparisonRunNames': dashboard.get('comparison_run_names', []) or []}))",
+      ].join("; "),
+      configPath,
+    ],
+    { cwd: repoRoot },
+  );
+
+  return JSON.parse(stdout.trim()) as DashboardRunConfig;
 }
 
 async function listFinishedRuns(): Promise<LatestFinishedRun[]> {
@@ -95,15 +129,65 @@ async function listFinishedRuns(): Promise<LatestFinishedRun[]> {
   return candidates;
 }
 
+async function listMetricRuns(): Promise<DashboardRunCandidate[]> {
+  if (!(await pathExists(metricsRoot))) {
+    return [];
+  }
+
+  const entries = await fs.readdir(metricsRoot, { withFileTypes: true });
+  const candidates: DashboardRunCandidate[] = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+
+    const runName = entry.name;
+    const sources = sourcePathsForRun(runName);
+    const requiredFiles = [sources.metricsSummary, sources.champions];
+    const allPresent = await Promise.all(requiredFiles.map(pathExists));
+    if (allPresent.some((present) => !present)) {
+      continue;
+    }
+
+    const optionalFiles = (
+      await Promise.all([sources.backtestSummary, sources.gallerySummary].map(async (filePath) => (await pathExists(filePath) ? filePath : null)))
+    ).filter((filePath): filePath is string => Boolean(filePath));
+
+    const modifiedAt = new Date(await latestSourceMtimeMs([...requiredFiles, ...optionalFiles])).toISOString();
+    candidates.push({
+      runName,
+      modifiedAt,
+      sourcePaths: sources,
+    });
+  }
+
+  candidates.sort((left, right) => Date.parse(right.modifiedAt) - Date.parse(left.modifiedAt));
+  return candidates;
+}
+
 export async function findLatestFinishedRun(): Promise<LatestFinishedRun | null> {
   const runs = await listFinishedRuns();
   return runs[0] ?? null;
 }
 
-export async function ensureDashboardSnapshot(runName: string, configPath = defaultConfigPath) {
+export async function ensureDashboardSnapshot(
+  runName: string,
+  configPath = defaultConfigPath,
+  artifactRunName: string | null = null,
+  comparisonRunNames: string[] = [],
+) {
   const snapshotDir = path.join(generatedRoot, runName);
   const snapshotPath = path.join(snapshotDir, "data.json");
-  const sourcePaths = [...Object.values(sourcePathsForRun(runName)), ...builderDependencies, configPath];
+  const candidatePaths = [
+    ...Object.values(sourcePathsForRun(runName)),
+    ...(artifactRunName ? Object.values(sourcePathsForRun(artifactRunName)) : []),
+    ...comparisonRunNames.flatMap((name) => Object.values(sourcePathsForRun(name))),
+    ...builderDependencies,
+    configPath,
+  ];
+  const sourcePathPresence = await Promise.all(candidatePaths.map(async (filePath) => ({ filePath, exists: await pathExists(filePath) })));
+  const sourcePaths = sourcePathPresence.filter((item) => item.exists).map((item) => item.filePath);
   const snapshotExists = await pathExists(snapshotPath);
   const latestSourceMtime = await latestSourceMtimeMs(sourcePaths);
 
@@ -136,14 +220,36 @@ export async function ensureDashboardSnapshot(runName: string, configPath = defa
 
 export async function loadLatestDashboardSnapshot() {
   const finishedRuns = await listFinishedRuns();
+  const metricRuns = await listMetricRuns();
   const latestRun = finishedRuns[0] ?? null;
-  if (!latestRun) {
+  if (metricRuns.length === 0) {
     return { latestRun: null, snapshot: null as DashboardSnapshot | null };
   }
 
+  const dashboardConfig = await loadDashboardRunConfig();
+  const { primaryRunName, artifactRunName, comparisonRunNames } = dashboardConfig;
+  if (primaryRunName) {
+    const primaryRun = metricRuns.find((run) => run.runName === primaryRunName);
+    if (primaryRun) {
+      const snapshotPath = await ensureDashboardSnapshot(
+        primaryRun.runName,
+        defaultConfigPath,
+        artifactRunName,
+        comparisonRunNames,
+      );
+      const snapshot = JSON.parse(await fs.readFile(snapshotPath, "utf8")) as DashboardSnapshot;
+      return { latestRun, snapshot };
+    }
+  }
+
   const candidates: Array<{ run: LatestFinishedRun; snapshot: DashboardSnapshot }> = [];
-  for (const run of finishedRuns) {
-    const snapshotPath = await ensureDashboardSnapshot(run.runName);
+  for (const run of metricRuns) {
+    const snapshotPath = await ensureDashboardSnapshot(
+      run.runName,
+      defaultConfigPath,
+      artifactRunName,
+      comparisonRunNames,
+    );
     const snapshot = JSON.parse(await fs.readFile(snapshotPath, "utf8")) as DashboardSnapshot;
     candidates.push({ run, snapshot });
   }

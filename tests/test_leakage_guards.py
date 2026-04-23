@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from candlestick.labeling.extrema import gaussian_smooth_causal
+from chart_patterns.labeling.extrema import gaussian_smooth_causal
 from scripts.run_experiment_suite import (
     _apply_train_augmentation,
     _augment_train_positives,

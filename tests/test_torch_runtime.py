@@ -5,7 +5,7 @@ import pytest
 import torch
 from torch import nn
 
-from candlestick.models.torch_common import (
+from chart_patterns.models.torch_common import (
     SEQUENCE_NORMALIZATION_TRAIN_ZSCORE,
     SEQUENCE_NORMALIZATION_WINDOW_MINMAX,
     TorchBinaryModel,

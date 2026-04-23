@@ -1,0 +1,21 @@
+# Canonical first-run reproducibility profile for the screened high-coverage workflow.
+
+project:
+  run_name: first_run_check
+  seed: 42
+  device: cpu
+
+model_selection:
+  candidate_models:
+    - hgb
+    - logreg
+    - lstm
+    - tcn
+    - transformer
+  primary_selection_metric: f2
+
+training:
+  mixed_precision: false
+
+optuna:
+  storage_path: outputs/optuna/{run_name}/studies.db

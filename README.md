@@ -1,4 +1,4 @@
-# Candlestick Pattern Recognition
+# Chart Pattern Recognition
 
 This project detects four classic chart patterns on 15-minute SPY data and shows the results in a web dashboard.
 
@@ -13,7 +13,6 @@ Patterns covered:
 
 - Python with `pip`
 - Node.js with `npm` for the dashboard
-- Kaggle API access for the dataset download
 
 ## First-Time Setup
 
@@ -31,7 +30,15 @@ npm install
 cd ..
 ```
 
-## Kaggle Setup
+## Tracked Grading Dataset
+
+This repository ships the prepared 15-minute grading dataset at:
+
+- `data/processed/spy_15m.csv`
+
+That means the canonical `production_repro` workflow does not require Kaggle for grading or teammate verification. Kaggle is only needed if you want to regenerate the prepared dataset locally.
+
+## Optional Kaggle Setup
 
 The dataset is downloaded through `kagglehub`, so you need a Kaggle API token.
 
@@ -51,8 +58,6 @@ If Kaggle changes the CSV name, update `data_source.kaggle_file_path` before run
 Replace `my_run` with any run name you want to keep.
 
 ```bash
-python scripts/download_kaggle_intraday.py --config configs/config.yaml
-python scripts/prepare_15m_dataset.py --config configs/config.yaml
 python scripts/run_experiment_suite.py --config configs/config.yaml --config-override configs/overrides/production_repro.yaml --set project.run_name=my_run
 python scripts/run_backtest.py --config configs/config.yaml --config-override configs/overrides/production_repro.yaml --set project.run_name=my_run
 python scripts/render_pattern_gallery.py --config configs/config.yaml --config-override configs/overrides/production_repro.yaml --set project.run_name=my_run
@@ -80,6 +85,10 @@ This profile bakes in the live setup that produced the strongest verified local 
 - `window_minmax` sequence normalization
 - training-only positive augmentation
 - reduced Optuna budget tuned for the verified local run
+
+The canonical grading-safe path starts from the tracked prepared dataset:
+
+- `data/processed/spy_15m.csv`
 
 Canonical training command:
 
@@ -113,43 +122,15 @@ A rerun within about `±0.02` on the macro metrics is a good reproducibility che
 
 ## Step-by-Step
 
-### 1. Download the raw dataset
+### 1. Use the tracked 15-minute dataset
 
-```bash
-python scripts/download_kaggle_intraday.py --config configs/config.yaml
-```
+The canonical first run uses the prepared dataset already included in the repository:
 
-Main output:
-
-- `data/raw/spy_1m.csv`
-
-Also writes a raw data quality report to:
-
-- `outputs/data_quality/raw_1m_quality_report.json`
-
-### 2. Prepare the 15-minute dataset
-
-This step cleans the raw data, audits timezone handling, removes bad rows, keeps regular NYSE session data, and resamples from 1 minute to 15 minutes.
-
-```bash
-python scripts/prepare_15m_dataset.py --config configs/config.yaml
-```
-
-Main outputs:
-
-- `data/processed/spy_1m_cleaned.csv`
 - `data/processed/spy_15m.csv`
-- `outputs/data_quality/timezone_report.json`
-- `outputs/data_quality/session_coverage_report.csv`
-- `outputs/data_quality/prep_quality_report.json`
 
-If you want this step to re-download the raw Kaggle data first, use:
+This lets a professor or teammate rerun the canonical `production_repro` profile without Kaggle credentials or the raw-data preparation step.
 
-```bash
-python scripts/prepare_15m_dataset.py --config configs/config.yaml --refresh-raw
-```
-
-### 3. Run the model training and model comparison
+### 2. Run the model training and model comparison
 
 This trains the configured candidate models and selects a champion model for each pattern.
 
@@ -176,7 +157,7 @@ Candidate models in [configs/overrides/production_repro.yaml](configs/overrides/
 - `tcn`
 - `lstm`
 
-### 4. Run the backtest
+### 3. Run the backtest
 
 This backtests the champion predictions produced in the previous step.
 
@@ -196,7 +177,7 @@ Important files:
 - `backtest_summary.csv`
 - `backtest_summary.json`
 
-### 5. Generate gallery images for the dashboard
+### 4. Generate gallery images for the dashboard
 
 This creates TP/FP/FN chart images for the champion models.
 
@@ -215,7 +196,7 @@ Important file:
 
 - `gallery_summary.json`
 
-### 6. Run the dashboard
+### 5. Run the dashboard
 
 Start the dashboard in development mode:
 
@@ -227,6 +208,44 @@ npm run dev
 Open:
 
 - `http://localhost:5173`
+
+### 6. Optional: regenerate the prepared dataset from Kaggle
+
+Only use this if you want to rebuild `data/processed/spy_15m.csv` from the raw Kaggle source.
+
+Download the raw dataset:
+
+```bash
+python scripts/download_kaggle_intraday.py --config configs/config.yaml
+```
+
+Main output:
+
+- `data/raw/spy_1m.csv`
+
+Also writes a raw data quality report to:
+
+- `outputs/data_quality/raw_1m_quality_report.json`
+
+Prepare the canonical 15-minute dataset:
+
+```bash
+python scripts/prepare_15m_dataset.py --config configs/config.yaml
+```
+
+Main outputs:
+
+- `data/processed/spy_1m_cleaned.csv`
+- `data/processed/spy_15m.csv`
+- `outputs/data_quality/timezone_report.json`
+- `outputs/data_quality/session_coverage_report.csv`
+- `outputs/data_quality/prep_quality_report.json`
+
+If you want this step to re-download the raw Kaggle data first, use:
+
+```bash
+python scripts/prepare_15m_dataset.py --config configs/config.yaml --refresh-raw
+```
 
 ## How To Refresh The Live Dashboard Results
 
@@ -249,7 +268,7 @@ python scripts/render_pattern_gallery.py --config configs/config.yaml --config-o
 
 After that, refresh the browser page. The dashboard server rebuilds its snapshot automatically when the source files are newer.
 
-Important note: the dashboard does not always show the newest run. It prefers the strongest presentation-ready finished run. If your latest run does not appear, compare it with older runs in `outputs/metrics/`, `outputs/backtest/`, and `outputs/gallery/`.
+Important note: the dashboard does not always show the newest run. It prefers the strongest eligible finished run, then shows the supported subset of patterns from that run. If your latest run does not appear, compare it with older runs in `outputs/metrics/`, `outputs/backtest/`, and `outputs/gallery/`.
 
 ## Manual Dashboard Snapshot Rebuild
 
@@ -279,6 +298,7 @@ Useful settings:
 - `model_selection.candidate_models`: which models to train
 - `labeling.allowed_patterns`: which patterns to detect
 - `optuna.enabled`: whether Optuna tuning is enabled
+- `dashboard.presentation.*`: support floor for the dashboard's supported subset
 - `paths.*`: where data and outputs are written
 
 ## Quick Checks
@@ -298,5 +318,7 @@ python scripts/run_experiment_suite.py --config configs/config.yaml --smoke
 ## Useful Files
 
 - [configs/config.yaml](configs/config.yaml): main project settings
-- [PATTERNS_EXPLAINED.md](PATTERNS_EXPLAINED.md): pattern definitions and assumptions
+- [docs/PATTERNS_EXPLAINED.md](docs/PATTERNS_EXPLAINED.md): pattern definitions and assumptions
 - [docs/BUSINESS_IMPACT.md](docs/BUSINESS_IMPACT.md): business context
+- [docs/BRIEF.md](docs/BRIEF.md): consultancy brief
+- [docs/EXPLAINABILITY.md](docs/EXPLAINABILITY.md): SHAP artifacts and workflow
