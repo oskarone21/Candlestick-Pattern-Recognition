@@ -84,20 +84,31 @@ export default function PatternRoute() {
     return null;
   }
 
+  const auditSnapshot = snapshot.audit ?? null;
+  const auditSource = auditSnapshot ?? snapshot;
+  const auditHasBacktest = auditSource.meta.artifact_availability.backtest;
+  const auditHasGallery = auditSource.meta.artifact_availability.gallery;
+
   if (!visiblePatterns(snapshot).includes(pattern)) {
     return (
       <EmptyState
-        title="Pattern hidden from the presentation snapshot"
-        description="This route only surfaces patterns that cleared the presentation support gates. The raw artifacts may still contain the hidden pattern, but it is not shown in the proposal-facing dashboard."
+        title="Pattern hidden from the supported snapshot"
+        description="This pattern exists in the selected snapshot artifacts, but it stayed below the configured support floor for the main dashboard."
       />
     );
   }
 
   const champion = snapshot.classification.champions.find((row) => row.pattern === pattern);
-  const modelRows = snapshot.backtest.pair_rows
+  const auditPrimaryPair = champion
+    ? auditSource.backtest.pair_rows.find((row) => row.pattern === pattern && row.model === champion.model)
+    : undefined;
+  const classificationRows = snapshot.classification.summary_rows
+    .filter((row) => row.pattern === pattern)
+    .sort((left, right) => right.f1 - left.f1 || right.pr_auc - left.pr_auc);
+  const modelRows = auditSource.backtest.pair_rows
     .filter((row) => row.pattern === pattern)
     .sort((left, right) => right.total_pnl - left.total_pnl || right.f1 - left.f1);
-  const chartSeries: ChartSeries[] = snapshot.backtest.pair_curves
+  const chartSeries: ChartSeries[] = auditSource.backtest.pair_curves
     .filter((curve) => curve.pattern === pattern)
     .map((curve, index) => ({
       id: curve.series_id,
@@ -109,7 +120,7 @@ export default function PatternRoute() {
         net_pnl: point.net_pnl,
       })),
     }));
-  const samples = snapshot.gallery.samples[pattern] ?? {};
+  const samples = auditSource.gallery.samples[pattern] ?? {};
 
   if (!champion) {
     return (
@@ -124,23 +135,31 @@ export default function PatternRoute() {
     <div className="space-y-8">
       <PageHeader
         eyebrow="Pattern Focus"
-        title={`${humanizePattern(pattern)} in the latest completed run: classification strength, profitability curve, and concrete visual evidence.`}
-        description={patternStory(pattern, champion.total_pnl, champion.win_rate)}
+        title={`${humanizePattern(pattern)} in the selected snapshot: classification strength first, with secondary audit artifacts only where they exist.`}
+        description={
+          auditHasBacktest
+            ? patternStory(pattern, auditPrimaryPair?.total_pnl ?? 0, auditPrimaryPair?.win_rate ?? 0)
+            : "This focused snapshot is intentionally centered on classification evidence, so profitability and gallery artifacts are treated as optional follow-on audit layers."
+        }
         aside={
-          <div className="grid w-full max-w-[19rem] gap-3 xl:max-w-[24rem] 2xl:max-w-none 2xl:grid-cols-2">
+          <div className="grid w-full max-w-[24rem] gap-3">
             <StatCard
               label="Champion model"
               value={champion.model.toUpperCase()}
               hint={`Selected on ${champion.selection_split} with ${formatPercent(champion.selection_f1)} F1.`}
               tone="positive"
-              valueClassName="text-[clamp(1.85rem,3vw,2.8rem)] leading-[0.92] break-words"
+              valueClassName="text-[clamp(1.85rem,3vw,2.8rem)] leading-[0.92]"
             />
             <StatCard
-              label="Champion PnL"
-              value={formatSignedCurrency(champion.total_pnl)}
-              hint={`${formatPercent(champion.win_rate)} win rate · ${formatNumber(champion.profit_factor)} profit factor`}
-              tone={pnlTone(champion.total_pnl)}
-              valueClassName="text-[clamp(1.75rem,2.8vw,2.75rem)] leading-[0.92] break-words"
+              label={auditHasBacktest ? "Champion PnL" : "Backtest audit"}
+              value={auditHasBacktest ? formatSignedCurrency(auditPrimaryPair?.total_pnl ?? 0, true) : "Unavailable"}
+              hint={
+                auditHasBacktest
+                  ? `${formatPercent(auditPrimaryPair?.win_rate ?? 0)} win rate · ${formatNumber(auditPrimaryPair?.profit_factor ?? 0)} profit factor`
+                  : "This focused snapshot only includes classification artifacts."
+              }
+              tone={auditHasBacktest ? pnlTone(auditPrimaryPair?.total_pnl ?? 0) : "neutral"}
+              valueClassName="text-[clamp(1.75rem,2.8vw,2.75rem)] leading-[0.92]"
             />
           </div>
         }
@@ -150,72 +169,123 @@ export default function PatternRoute() {
         <StatCard label="Test F1" value={formatPercent(champion.test_f1)} hint="Leakage-safe champion test metric." tone="neutral" />
         <StatCard label="Precision" value={formatPercent(champion.test_precision)} hint="False-positive discipline." tone="neutral" />
         <StatCard label="Recall" value={formatPercent(champion.test_recall)} hint="Coverage on positive examples." tone="neutral" />
-        <StatCard label="Trades" value={formatNumber(champion.trades)} hint={`${formatSignedCurrency(champion.expectancy)} expectancy`} tone="neutral" />
+        <StatCard
+          label={auditHasBacktest ? "Trades" : "Validation support"}
+          value={auditHasBacktest ? formatNumber(auditPrimaryPair?.trades ?? 0) : formatNumber(champion.val_positive_support)}
+          hint={
+            auditHasBacktest
+              ? `${formatSignedCurrency(auditPrimaryPair?.expectancy ?? 0)} expectancy`
+              : "Positive examples in the validation split."
+          }
+          tone="neutral"
+        />
       </section>
 
-      <SectionCard title="Model profitability overlay" kicker="Pattern Performance">
-        <ProfitCurveChart series={chartSeries} />
-      </SectionCard>
+      {auditHasBacktest ? (
+        <SectionCard title="Model profitability overlay" kicker="Pattern Performance">
+          <ProfitCurveChart series={chartSeries} />
+        </SectionCard>
+      ) : (
+        <SectionCard title="Model profitability overlay" kicker="Unavailable In Focused Snapshot">
+          <p className="text-sm leading-6 text-slate-600">
+            This live snapshot is intentionally metrics-first, so per-pattern profitability curves are not shown here.
+          </p>
+        </SectionCard>
+      )}
 
-      <SectionCard title="Model comparison" kicker="Latest Completed Run">
-        <div className="space-y-3">
-          {modelRows.map((row) => (
-            <article key={`${row.pattern}-${row.model}`} className="leaderboard-row">
-              <div className="flex items-center gap-3">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">{row.model}</p>
-                  <p className="text-sm text-slate-500">{formatPercent(row.f1)} F1</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-right text-sm">
-                <span className="text-slate-500">PnL</span>
-                <span className="font-semibold text-slate-950">{formatSignedCurrency(row.total_pnl)}</span>
-                <span className="text-slate-500">Win rate</span>
-                <span className="font-semibold text-slate-950">{formatPercent(row.win_rate)}</span>
-                <span className="text-slate-500">Profit factor</span>
-                <span className="font-semibold text-slate-950">{formatNumber(row.profit_factor)}</span>
-              </div>
-            </article>
-          ))}
-        </div>
-      </SectionCard>
-
-      <SectionCard title="TP / FP / FN gallery" kicker="Visual Evidence">
-        <div className="grid gap-5 xl:grid-cols-3">
-          {(["tp", "fp", "fn"] as const).map((bucket) => (
-            <article key={bucket} className="subtle-panel space-y-4 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-lg font-semibold text-slate-950">{bucket.toUpperCase()}</h3>
-                <Pill tone={bucket === "tp" ? "positive" : bucket === "fp" ? "caution" : "negative"}>
-                  {(samples[bucket] ?? []).length} samples
-                </Pill>
-              </div>
-              <div className="grid gap-4">
-                {(samples[bucket] ?? []).length > 0 ? (
-                  (samples[bucket] ?? []).map((sample, index) => (
-                    <GallerySampleFigure
-                      key={`${bucket}-${index}`}
-                      bucket={bucket}
-                      index={index}
-                      pattern={pattern}
-                      sample={sample}
-                    />
-                  ))
-                ) : (
-                  <div className="gallery-fallback min-h-56">
-                    <div className="space-y-2">
-                      <p className="eyebrow">No examples saved</p>
-                      <p className="text-sm leading-6 text-slate-600">
-                        The latest snapshot did not surface a sample for this bucket.
-                      </p>
-                    </div>
+      {auditHasBacktest ? (
+        <SectionCard title="Model comparison" kicker="Audit Comparison">
+          <div className="space-y-3">
+            {modelRows.map((row) => (
+              <article key={`${row.pattern}-${row.model}`} className="leaderboard-row">
+                <div className="flex items-center gap-3">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">{row.model}</p>
+                    <p className="text-sm text-slate-500">{formatPercent(row.f1)} F1</p>
                   </div>
-                )}
-              </div>
-            </article>
-          ))}
-        </div>
-      </SectionCard>
+                </div>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-right text-sm">
+                  <span className="text-slate-500">PnL</span>
+                  <span className="font-semibold text-slate-950">{formatSignedCurrency(row.total_pnl)}</span>
+                  <span className="text-slate-500">Win rate</span>
+                  <span className="font-semibold text-slate-950">{formatPercent(row.win_rate)}</span>
+                  <span className="text-slate-500">Profit factor</span>
+                  <span className="font-semibold text-slate-950">{formatNumber(row.profit_factor)}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </SectionCard>
+      ) : (
+        <SectionCard title="Model comparison" kicker="Classification Only">
+          <div className="space-y-3">
+            {classificationRows.map((row) => (
+              <article key={`${row.pattern}-${row.model}`} className="leaderboard-row">
+                <div className="flex items-center gap-3">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">{row.model}</p>
+                    <p className="text-sm text-slate-500">Threshold {formatNumber(row.threshold)}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-right text-sm">
+                  <span className="text-slate-500">F1</span>
+                  <span className="font-semibold text-slate-950">{formatPercent(row.f1)}</span>
+                  <span className="text-slate-500">Precision</span>
+                  <span className="font-semibold text-slate-950">{formatPercent(row.precision)}</span>
+                  <span className="text-slate-500">Recall</span>
+                  <span className="font-semibold text-slate-950">{formatPercent(row.recall)}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </SectionCard>
+      )}
+
+      {auditHasGallery ? (
+        <SectionCard title="TP / FP / FN gallery" kicker="Visual Evidence">
+          <div className="grid gap-5 xl:grid-cols-3">
+            {(["tp", "fp", "fn"] as const).map((bucket) => (
+              <article key={bucket} className="subtle-panel space-y-4 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-lg font-semibold text-slate-950">{bucket.toUpperCase()}</h3>
+                  <Pill tone={bucket === "tp" ? "positive" : bucket === "fp" ? "caution" : "negative"}>
+                    {(samples[bucket] ?? []).length} samples
+                  </Pill>
+                </div>
+                <div className="grid gap-4">
+                  {(samples[bucket] ?? []).length > 0 ? (
+                    (samples[bucket] ?? []).map((sample, index) => (
+                      <GallerySampleFigure
+                        key={`${bucket}-${index}`}
+                        bucket={bucket}
+                        index={index}
+                        pattern={pattern}
+                        sample={sample}
+                      />
+                    ))
+                  ) : (
+                    <div className="gallery-fallback min-h-56">
+                      <div className="space-y-2">
+                        <p className="eyebrow">No examples saved</p>
+                        <p className="text-sm leading-6 text-slate-600">
+                          The latest snapshot did not surface a sample for this bucket.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        </SectionCard>
+      ) : (
+        <SectionCard title="Visual evidence" kicker="Unavailable In Focused Snapshot">
+          <p className="text-sm leading-6 text-slate-600">
+            Gallery artifacts are not available for this live snapshot. The classification metrics above remain the
+            primary evidence for this pattern.
+          </p>
+        </SectionCard>
+      )}
     </div>
   );
 }

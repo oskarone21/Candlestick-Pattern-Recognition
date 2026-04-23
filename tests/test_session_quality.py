@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pandas as pd
 
-from candlestick.data.clean_resample import drop_exact_duplicate_ohlcv
-from candlestick.data.session_quality import build_xnys_schedule, validate_intraday_by_session_calendar
+from chart_patterns.data.clean_resample import drop_exact_duplicate_ohlcv
+from chart_patterns.data.session_quality import build_xnys_schedule, validate_intraday_by_session_calendar
 
 
 def _make_intraday_frame(day: str, start: str, periods: int) -> pd.DataFrame:

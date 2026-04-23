@@ -18,14 +18,16 @@ except ImportError:
 
 ensure_repo_root()
 
-from candlestick.config import ensure_dir, load_config
-from candlestick.project_utils import load_processed_prices
-from candlestick.trading.backtest import run_backtest_for_predictions
-
-PRESENTATION_MIN_VAL_SUPPORT = 20
-PRESENTATION_MIN_TEST_SUPPORT = 20
-PRESENTATION_MIN_VISIBLE_PATTERNS = 3
-PRESENTATION_MIN_CHAMPION_F1 = 0.25
+from chart_patterns.config import ensure_dir, load_config
+from chart_patterns.domain import (
+    DEFAULT_DASHBOARD_MIN_CHAMPION_F1,
+    DEFAULT_DASHBOARD_MIN_VISIBLE_PATTERNS,
+    DEFAULT_DECISION_THRESHOLD,
+    DEFAULT_MIN_POSITIVE_SUPPORT,
+)
+from chart_patterns.project_utils import load_processed_prices, run_name_from_cfg
+from chart_patterns.run_naming import profile_label
+from chart_patterns.trading.backtest import run_backtest_for_predictions
 
 
 class PairBacktestRow(TypedDict):
@@ -68,6 +70,7 @@ class ChampionPayloadRow(TypedDict):
     val_positive_support: int
     test_positive_support: int
     presentation_eligible: bool
+    support_warning: str | None
     trades: int
     total_pnl: float
     win_rate: float
@@ -82,6 +85,56 @@ class PatternSupportRow(TypedDict):
     val_positive_support: int
     test_positive_support: int
     presentation_eligible: bool
+
+
+class PresentationConfig(TypedDict):
+    minimum_validation_positive_support: int
+    minimum_test_positive_support: int
+    minimum_visible_patterns: int
+    minimum_champion_f1: float
+
+
+class ArtifactAvailability(TypedDict):
+    metrics: bool
+    backtest: bool
+    gallery: bool
+    fully_finished: bool
+
+
+class HistoricalModelFamilyRow(TypedDict):
+    model: str
+    mean_f1: float
+    mean_precision: float
+    mean_recall: float
+    source_run: str
+    patterns_covered: int
+
+
+class DashboardConfig(TypedDict):
+    artifact_run_name: str | None
+    comparison_run_names: list[str]
+    presentation: dict[str, Any]
+
+
+def _support_warning(
+    val_positive_support: int,
+    test_positive_support: int,
+    presentation_cfg: PresentationConfig,
+) -> str | None:
+    val_warning_threshold = max(
+        presentation_cfg["minimum_validation_positive_support"] * 2,
+        presentation_cfg["minimum_validation_positive_support"] + 3,
+    )
+    test_warning_threshold = max(
+        presentation_cfg["minimum_test_positive_support"] * 2,
+        presentation_cfg["minimum_test_positive_support"] + 3,
+    )
+    if val_positive_support <= val_warning_threshold or test_positive_support <= test_warning_threshold:
+        return (
+            f"Small-sample pattern: validation support {val_positive_support}, "
+            f"test support {test_positive_support}. Treat this as directional evidence, not a stable production claim."
+        )
+    return None
 
 
 def _resolve_run_name(metrics_dir: Path, explicit: str | None) -> str:
@@ -147,6 +200,44 @@ def _read_json(path: Path) -> dict[str, Any]:
         return json.load(handle)
 
 
+def _dashboard_config(cfg: dict[str, Any] | None = None) -> DashboardConfig:
+    dashboard_cfg = cfg.get("dashboard", {}) if cfg else {}
+    return {
+        "artifact_run_name": (
+            str(dashboard_cfg["artifact_run_name"])
+            if dashboard_cfg.get("artifact_run_name")
+            else None
+        ),
+        "comparison_run_names": [str(name) for name in dashboard_cfg.get("comparison_run_names", []) or []],
+        "presentation": dashboard_cfg.get("presentation", {}) or {},
+    }
+
+
+def _presentation_config(cfg: dict[str, Any] | None = None) -> PresentationConfig:
+    presentation_cfg = _dashboard_config(cfg)["presentation"]
+    evaluation_cfg = cfg.get("evaluation", {}) if cfg else {}
+    return {
+        "minimum_validation_positive_support": int(
+            presentation_cfg.get(
+                "minimum_validation_positive_support",
+                evaluation_cfg.get("minimum_validation_positive_support", DEFAULT_MIN_POSITIVE_SUPPORT),
+            )
+        ),
+        "minimum_test_positive_support": int(
+            presentation_cfg.get(
+                "minimum_test_positive_support",
+                evaluation_cfg.get("minimum_test_positive_support", DEFAULT_MIN_POSITIVE_SUPPORT),
+            )
+        ),
+        "minimum_visible_patterns": int(
+            presentation_cfg.get("minimum_visible_patterns", DEFAULT_DASHBOARD_MIN_VISIBLE_PATTERNS)
+        ),
+        "minimum_champion_f1": float(
+            presentation_cfg.get("minimum_champion_f1", DEFAULT_DASHBOARD_MIN_CHAMPION_F1)
+        ),
+    }
+
+
 def _sanitize_for_json(value: Any) -> Any:
     if isinstance(value, dict):
         return {str(key): _sanitize_for_json(item) for key, item in value.items()}
@@ -172,7 +263,27 @@ def _relative_path(path: Path, root: Path) -> str:
     return str(Path(os.path.relpath(path, root)))
 
 
-def _load_metric_frames(metrics_root: Path, backtest_root: Path, gallery_root: Path) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict[str, Any], dict[str, Any]]:
+def _artifact_availability(
+    metrics_root: Path,
+    backtest_root: Path,
+    gallery_root: Path,
+) -> ArtifactAvailability:
+    metrics_available = (metrics_root / "model_comparison_summary.csv").exists()
+    backtest_available = (backtest_root / "backtest_summary.csv").exists()
+    gallery_available = (gallery_root / "gallery_summary.json").exists()
+    return {
+        "metrics": metrics_available,
+        "backtest": backtest_available,
+        "gallery": gallery_available,
+        "fully_finished": backtest_available and gallery_available,
+    }
+
+
+def _load_metric_frames(
+    metrics_root: Path,
+    backtest_root: Path,
+    gallery_root: Path,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict[str, Any], dict[str, Any], ArtifactAvailability]:
     summary_path = metrics_root / "model_comparison_summary.csv"
     if not summary_path.exists():
         raise FileNotFoundError(f"Metrics summary not found: {summary_path}")
@@ -186,10 +297,15 @@ def _load_metric_frames(metrics_root: Path, backtest_root: Path, gallery_root: P
     )
     macro = _read_json(metrics_root / "macro_summary.json")
     gallery_summary = _read_json(gallery_root / "gallery_summary.json")
-    return summary_df, champions_df, champion_backtest, macro, gallery_summary
+    availability = _artifact_availability(metrics_root, backtest_root, gallery_root)
+    return summary_df, champions_df, champion_backtest, macro, gallery_summary, availability
 
 
-def _pattern_support_from_split(split_df: pd.DataFrame) -> PatternSupportRow:
+def _pattern_support_from_split(
+    split_df: pd.DataFrame,
+    presentation_cfg: PresentationConfig | None = None,
+) -> PatternSupportRow:
+    presentation_cfg = presentation_cfg or _presentation_config()
     positives = (
         split_df.groupby("split")["label"].sum().to_dict()
         if not split_df.empty and {"split", "label"}.issubset(split_df.columns)
@@ -203,13 +319,17 @@ def _pattern_support_from_split(split_df: pd.DataFrame) -> PatternSupportRow:
         "val_positive_support": val_positive_support,
         "test_positive_support": test_positive_support,
         "presentation_eligible": (
-            val_positive_support >= PRESENTATION_MIN_VAL_SUPPORT
-            and test_positive_support >= PRESENTATION_MIN_TEST_SUPPORT
+            val_positive_support >= presentation_cfg["minimum_validation_positive_support"]
+            and test_positive_support >= presentation_cfg["minimum_test_positive_support"]
         ),
     }
 
 
-def _load_pattern_support(metrics_root: Path, summary_df: pd.DataFrame) -> dict[str, PatternSupportRow]:
+def _load_pattern_support(
+    metrics_root: Path,
+    summary_df: pd.DataFrame,
+    presentation_cfg: PresentationConfig,
+) -> dict[str, PatternSupportRow]:
     support_map: dict[str, PatternSupportRow] = {}
     for pattern in sorted(summary_df["pattern"].astype(str).unique().tolist()) if not summary_df.empty else []:
         split_path = metrics_root / pattern / "split_metadata.csv"
@@ -221,7 +341,7 @@ def _load_pattern_support(metrics_root: Path, summary_df: pd.DataFrame) -> dict[
                 "presentation_eligible": False,
             }
             continue
-        support_map[pattern] = _pattern_support_from_split(pd.read_csv(split_path))
+        support_map[pattern] = _pattern_support_from_split(pd.read_csv(split_path), presentation_cfg)
     return support_map
 
 
@@ -287,7 +407,7 @@ def _build_pair_row(row: pd.Series, summary: dict[str, Any]) -> PairBacktestRow:
         "precision": _row_float(row, "precision"),
         "recall": _row_float(row, "recall"),
         "pr_auc": _row_float(row, "pr_auc"),
-        "threshold": _row_float(row, "threshold", 0.5),
+        "threshold": _row_float(row, "threshold", DEFAULT_DECISION_THRESHOLD),
         "support_positive": _int_or_zero(row["support_positive"]),
         "support_negative": _int_or_zero(row["support_negative"]),
         "train_positive_support": _int_or_zero(row.get("train_positive_support")),
@@ -350,7 +470,16 @@ def _build_backtest_payload(
     prices: pd.DataFrame,
     metrics_root: Path,
     summary_df: pd.DataFrame,
+    *,
+    backtest_available: bool,
 ) -> dict[str, Any]:
+    if not backtest_available:
+        return {
+            "pair_rows": [],
+            "pair_curves": [],
+            "aggregate_curves": [],
+        }
+
     pair_rows: list[PairBacktestRow] = []
     pair_curves: list[dict[str, Any]] = []
     model_trade_frames: dict[str, list[pd.DataFrame]] = {}
@@ -477,6 +606,7 @@ def _build_champion_rows(
     champions_df: pd.DataFrame,
     summary_df: pd.DataFrame,
     pair_backtest_df: pd.DataFrame,
+    presentation_cfg: PresentationConfig,
 ) -> list[ChampionPayloadRow]:
     if champions_df.empty:
         return []
@@ -498,7 +628,7 @@ def _build_champion_rows(
                 "model": model,
                 "selection_split": str(row["selection_split"]),
                 "selection_f1": _row_float(row, "selection_f1"),
-                "threshold": _row_float(row, "threshold", 0.5),
+                "threshold": _row_float(row, "threshold", DEFAULT_DECISION_THRESHOLD),
                 "test_f1": _row_float(metric_row, "f1"),
                 "test_precision": _row_float(metric_row, "precision"),
                 "test_recall": _row_float(metric_row, "recall"),
@@ -507,6 +637,11 @@ def _build_champion_rows(
                 "val_positive_support": _int_or_zero(metric_row.get("val_positive_support")),
                 "test_positive_support": _int_or_zero(metric_row.get("test_positive_support")),
                 "presentation_eligible": _bool_or_false(metric_row.get("presentation_eligible")),
+                "support_warning": _support_warning(
+                    _int_or_zero(metric_row.get("val_positive_support")),
+                    _int_or_zero(metric_row.get("test_positive_support")),
+                    presentation_cfg,
+                ),
                 "trades": _int_or_zero(backtest_row.get("trades") or backtest_row.get("n_trades")),
                 "total_pnl": _float_or_none(backtest_row.get("total_pnl")) or 0.0,
                 "win_rate": _float_or_none(backtest_row.get("win_rate")) or 0.0,
@@ -527,7 +662,9 @@ def _payload_meta(
     backtest_root: Path,
     gallery_root: Path,
     summary_df: pd.DataFrame,
+    artifact_availability: ArtifactAvailability,
 ) -> dict[str, Any]:
+    pipeline_manifest = _read_json(metrics_root / "pipeline_manifest.json")
     return {
         "run_name": run_name,
         "generated_at": pd.Timestamp.utcnow().isoformat(),
@@ -539,6 +676,14 @@ def _payload_meta(
         },
         "models": sorted(summary_df["model"].unique().tolist()) if not summary_df.empty else [],
         "patterns": sorted(summary_df["pattern"].unique().tolist()) if not summary_df.empty else [],
+        "artifact_availability": artifact_availability,
+        "provenance": {
+            "workflow": pipeline_manifest.get("workflow"),
+            "winner_profile": pipeline_manifest.get("winner_profile"),
+            "winner_profile_label": profile_label(pipeline_manifest.get("winner_profile")),
+            "workflow_label": pipeline_manifest.get("workflow_label"),
+            "screen_report": pipeline_manifest.get("screen_report"),
+        },
     }
 
 
@@ -593,6 +738,7 @@ def _payload_hero(
 def _build_presentation_payload(
     summary_df: pd.DataFrame,
     champion_rows: list[ChampionPayloadRow],
+    presentation_cfg: PresentationConfig,
 ) -> dict[str, Any]:
     support_rows = (
         summary_df[
@@ -630,36 +776,81 @@ def _build_presentation_payload(
         if visible_champions
         else 0.0
     )
-    has_strong_champion = any(row["test_f1"] >= PRESENTATION_MIN_CHAMPION_F1 for row in visible_champions)
-    presentation_eligible = len(visible_patterns) >= PRESENTATION_MIN_VISIBLE_PATTERNS and has_strong_champion
-    quality_score = (
-        len(visible_patterns) * 100.0
-        + mean_visible_champion_f1 * 10.0
-        + mean_visible_champion_pr_auc
+    has_strong_champion = any(
+        row["test_f1"] >= presentation_cfg["minimum_champion_f1"] for row in visible_champions
+    )
+    presentation_eligible = (
+        len(visible_patterns) >= presentation_cfg["minimum_visible_patterns"] and has_strong_champion
     )
 
     if presentation_eligible:
         presentation_reason = (
-            f"{len(visible_patterns)} presentation-ready patterns cleared the support gates; "
-            f"{len(hidden_patterns)} hidden for low support."
+            f"Showing {len(visible_patterns)} supported patterns from the selected snapshot; "
+            f"{len(hidden_patterns)} hidden for lower support."
         )
     elif visible_patterns:
         presentation_reason = (
-            f"Only {len(visible_patterns)} patterns cleared the support gates; "
-            "fall back to a stronger finished run for presentation."
+            f"Showing {len(visible_patterns)} supported patterns from the selected snapshot; "
+            f"{len(hidden_patterns)} hidden for lower support."
         )
     else:
-        presentation_reason = "No patterns cleared the support gates; fall back to the strongest finished run."
+        presentation_reason = "No patterns cleared the configured support floor in this selected snapshot."
 
     return {
         "presentation_eligible": presentation_eligible,
         "visible_patterns": visible_patterns,
         "hidden_patterns": hidden_patterns,
-        "quality_score": float(quality_score),
         "presentation_reason": presentation_reason,
         "mean_visible_champion_f1": mean_visible_champion_f1,
         "mean_visible_champion_pr_auc": mean_visible_champion_pr_auc,
     }
+
+
+def _build_historical_model_rows(
+    cfg: dict[str, Any],
+    presentation_cfg: PresentationConfig,
+) -> list[HistoricalModelFamilyRow]:
+    metrics_dir = Path(cfg["paths"].get("metrics_dir", "outputs/metrics"))
+    comparison_runs = _dashboard_config(cfg)["comparison_run_names"]
+    rows: list[HistoricalModelFamilyRow] = []
+
+    for run_name in comparison_runs:
+        metrics_root = metrics_dir / run_name
+        summary_path = metrics_root / "model_comparison_summary.csv"
+        if not summary_path.exists():
+            continue
+
+        summary_df = pd.read_csv(summary_path)
+        if summary_df.empty:
+            continue
+
+        support_map = _load_pattern_support(metrics_root, summary_df, presentation_cfg)
+        annotated = _annotate_with_support(summary_df, support_map)
+        grouped = (
+            annotated.groupby("model")
+            .agg(
+                mean_f1=("f1", "mean"),
+                mean_precision=("precision", "mean"),
+                mean_recall=("recall", "mean"),
+                patterns_covered=("pattern", "nunique"),
+            )
+            .reset_index()
+        )
+
+        for _, row in grouped.iterrows():
+            rows.append(
+                {
+                    "model": str(row["model"]),
+                    "mean_f1": float(row["mean_f1"]),
+                    "mean_precision": float(row["mean_precision"]),
+                    "mean_recall": float(row["mean_recall"]),
+                    "source_run": str(run_name),
+                    "patterns_covered": int(row["patterns_covered"]),
+                }
+            )
+
+    rows.sort(key=lambda item: (item["source_run"], -item["mean_f1"], item["model"]))
+    return rows
 
 
 def _build_dashboard_payload(
@@ -667,48 +858,123 @@ def _build_dashboard_payload(
     cfg: dict[str, Any],
     output_dir: Path,
 ) -> dict[str, Any]:
-    output_dir = output_dir.resolve()
-    metrics_root = Path(cfg["paths"].get("metrics_dir", "outputs/metrics")) / run_name
-    backtest_root = Path(cfg["paths"].get("backtest_dir", "outputs/backtest")) / run_name
-    gallery_root = Path(cfg["paths"].get("gallery_dir", "outputs/gallery")) / run_name
+    def _build_run_payload(selected_run_name: str) -> dict[str, Any]:
+        metrics_root = Path(cfg["paths"].get("metrics_dir", "outputs/metrics")) / selected_run_name
+        backtest_root = Path(cfg["paths"].get("backtest_dir", "outputs/backtest")) / selected_run_name
+        gallery_root = Path(cfg["paths"].get("gallery_dir", "outputs/gallery")) / selected_run_name
 
-    summary_df, champions_df, champion_backtest, macro, gallery_summary = _load_metric_frames(
-        metrics_root,
-        backtest_root,
-        gallery_root,
-    )
-    support_map = _load_pattern_support(metrics_root, summary_df)
-    summary_df = _annotate_with_support(summary_df, support_map)
-    prices = load_processed_prices(cfg)
-    backtest_payload = _build_backtest_payload(cfg, prices, metrics_root, summary_df)
-    pair_backtest_df = pd.DataFrame(backtest_payload["pair_rows"])
-    champion_rows = _build_champion_rows(champions_df, summary_df, pair_backtest_df)
-    presentation = _build_presentation_payload(summary_df, champion_rows)
+        summary_df, champions_df, champion_backtest, macro, gallery_summary, artifact_availability = _load_metric_frames(
+            metrics_root,
+            backtest_root,
+            gallery_root,
+        )
+        presentation_cfg = _presentation_config(cfg)
+        support_map = _load_pattern_support(metrics_root, summary_df, presentation_cfg)
+        summary_df = _annotate_with_support(summary_df, support_map)
+        prices = load_processed_prices(cfg) if artifact_availability["backtest"] else pd.DataFrame()
+        backtest_payload = _build_backtest_payload(
+            cfg,
+            prices,
+            metrics_root,
+            summary_df,
+            backtest_available=artifact_availability["backtest"],
+        )
+        pair_backtest_df = pd.DataFrame(backtest_payload["pair_rows"])
+        champion_rows = _build_champion_rows(champions_df, summary_df, pair_backtest_df, presentation_cfg)
+        presentation = _build_presentation_payload(summary_df, champion_rows, presentation_cfg)
+
+        return {
+            "meta": _payload_meta(
+                selected_run_name,
+                output_dir,
+                metrics_root,
+                backtest_root,
+                gallery_root,
+                summary_df,
+                artifact_availability,
+            ),
+            "hero": _payload_hero(summary_df, pair_backtest_df, champion_rows, macro),
+            "presentation": presentation,
+            "classification": {
+                "summary_rows": summary_df.to_dict(orient="records"),
+                "detail_rows": _build_metrics_details(metrics_root, summary_df),
+                "champions": champion_rows,
+            },
+            "backtest": {
+                "champion_rows": champion_rows,
+                "champion_summary_rows": champion_backtest.to_dict(orient="records") if not champion_backtest.empty else [],
+                **backtest_payload,
+            },
+            "gallery": {
+                "summary": gallery_summary,
+                "samples": _gallery_samples(gallery_root, output_dir),
+            },
+        }
+
+    output_dir = output_dir.resolve()
+    dashboard_cfg = _dashboard_config(cfg)
+    presentation_cfg = _presentation_config(cfg)
+    primary_payload = _build_run_payload(run_name)
+
+    artifact_run_name = dashboard_cfg["artifact_run_name"]
+    audit_payload = None
+    if artifact_run_name and str(artifact_run_name) != run_name:
+        artifact_metrics_root = Path(cfg["paths"].get("metrics_dir", "outputs/metrics")) / str(artifact_run_name)
+        if (artifact_metrics_root / "model_comparison_summary.csv").exists():
+            audit_payload = _build_run_payload(str(artifact_run_name))
 
     return {
-        "meta": _payload_meta(run_name, output_dir, metrics_root, backtest_root, gallery_root, summary_df),
-        "hero": _payload_hero(summary_df, pair_backtest_df, champion_rows, macro),
-        "presentation": presentation,
-        "classification": {
-            "summary_rows": summary_df.to_dict(orient="records"),
-            "detail_rows": _build_metrics_details(metrics_root, summary_df),
-            "champions": champion_rows,
+        **primary_payload,
+        "historical": {
+            "model_family_rows": _build_historical_model_rows(cfg, presentation_cfg),
         },
-        "backtest": {
-            "champion_rows": champion_rows,
-            "champion_summary_rows": champion_backtest.to_dict(orient="records") if not champion_backtest.empty else [],
-            **backtest_payload,
-        },
-        "gallery": {
-            "summary": gallery_summary,
-            "samples": _gallery_samples(gallery_root, output_dir),
+        "audit": audit_payload,
+    }
+
+
+def build_dashboard_snapshot(
+    cfg: dict[str, Any],
+    run_name: str | None = None,
+    output_root: str | Path = "outputs/dashboard",
+    *,
+    data_only: bool = True,
+    assets_dir: str | Path = "dashboard",
+) -> Path:
+    resolved_run_name = run_name or run_name_from_cfg(cfg)
+    output_dir = ensure_dir(Path(output_root) / resolved_run_name)
+
+    if not data_only:
+        assets_path = Path(assets_dir)
+        if not assets_path.exists():
+            raise FileNotFoundError(
+                f"Dashboard assets not found at {assets_path}. Create the static dashboard files first."
+            )
+        shutil.copytree(assets_path, output_dir, dirs_exist_ok=True)
+
+    effective_cfg = {
+        **cfg,
+        "project": {
+            **cfg.get("project", {}),
+            "run_name": resolved_run_name,
         },
     }
+    payload = _sanitize_for_json(_build_dashboard_payload(resolved_run_name, effective_cfg, output_dir))
+
+    with (output_dir / "data.json").open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2)
+    with (output_dir / "data.js").open("w", encoding="utf-8") as handle:
+        handle.write("window.__DASHBOARD_DATA__ = ")
+        json.dump(payload, handle)
+        handle.write(";\n")
+
+    return output_dir
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build a static dashboard for the latest experiment results")
     parser.add_argument("--config", default="configs/config.yaml")
+    parser.add_argument("--config-override", action="append", default=[])
+    parser.add_argument("--set", dest="set_overrides", action="append", default=[])
     parser.add_argument("--run-name", default=None)
     parser.add_argument("--output-root", default="outputs/dashboard")
     parser.add_argument("--assets-dir", default="dashboard")
@@ -719,7 +985,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    cfg = load_config(args.config)
+    cfg = load_config(args.config, args.config_override, args.set_overrides)
     metrics_dir = Path(cfg["paths"].get("metrics_dir", "outputs/metrics"))
     run_name = _resolve_run_name(metrics_dir, args.run_name)
     output_dir = ensure_dir(Path(args.output_root) / run_name)
@@ -732,15 +998,20 @@ def main() -> None:
             )
         shutil.copytree(assets_dir, output_dir, dirs_exist_ok=True)
 
-    cfg = load_config(args.config, set_overrides=[f"project.run_name={run_name}"])
-    payload = _sanitize_for_json(_build_dashboard_payload(run_name, cfg, output_dir))
-
-    with (output_dir / "data.json").open("w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2)
-    with (output_dir / "data.js").open("w", encoding="utf-8") as handle:
-        handle.write("window.__DASHBOARD_DATA__ = ")
-        json.dump(payload, handle)
-        handle.write(";\n")
+    effective_cfg = {
+        **cfg,
+        "project": {
+            **cfg.get("project", {}),
+            "run_name": run_name,
+        },
+    }
+    build_dashboard_snapshot(
+        cfg=effective_cfg,
+        run_name=run_name,
+        output_root=args.output_root,
+        data_only=args.data_only,
+        assets_dir=args.assets_dir,
+    )
 
     mode = "data snapshot" if args.data_only else "dashboard"
     print(f"{mode.title()} built at: {output_dir}")

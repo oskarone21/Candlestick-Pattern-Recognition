@@ -1,0 +1,49 @@
+{
+  "reference_run_name": "broad_signal_validation_intraday_broad_signal_overnight",
+  "accepted_run_aliases": [
+    "reference_run_high_coverage_final",
+    "broad_signal_validation_intraday_broad_signal_overnight"
+  ],
+  "processed_15m_sha256": "1c5d71b27b855216ed82f5ba8eee60238755ae3bd2e1c50971547a87cbb0924b",
+  "workflow": "run_recall_pipeline",
+  "winner_profile": "high_coverage",
+  "visible_patterns": [
+    "double_bottom",
+    "double_top",
+    "head_shoulders",
+    "inverse_head_shoulders"
+  ],
+  "champion_models": {
+    "head_shoulders": "tcn",
+    "inverse_head_shoulders": "tcn",
+    "double_top": "logreg",
+    "double_bottom": "logreg"
+  },
+  "macro_metrics": {
+    "macro_f1": 0.5494,
+    "macro_f2": 0.6281,
+    "macro_precision": 0.5203,
+    "macro_recall": 0.7148,
+    "macro_selection_metric": 0.7531
+  },
+  "total_trades": 282,
+  "total_pnl": 92786.58,
+  "pattern_support": {
+    "head_shoulders": {
+      "val_positive_support": 104,
+      "test_positive_support": 92
+    },
+    "inverse_head_shoulders": {
+      "val_positive_support": 84,
+      "test_positive_support": 82
+    },
+    "double_top": {
+      "val_positive_support": 19,
+      "test_positive_support": 30
+    },
+    "double_bottom": {
+      "val_positive_support": 12,
+      "test_positive_support": 31
+    }
+  }
+}

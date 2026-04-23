@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from candlestick.benchmarks.synthetic_canary import SYNTHETIC_CANARY_TIERS, build_synthetic_canary_dataset
+from chart_patterns.benchmarks.synthetic_canary import SYNTHETIC_CANARY_TIERS, build_synthetic_canary_dataset
 
 
 @pytest.mark.parametrize(

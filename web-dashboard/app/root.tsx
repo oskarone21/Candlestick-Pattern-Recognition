@@ -28,11 +28,11 @@ export function links() {
 export function meta({ data }: Route.MetaArgs) {
   const runName = data?.snapshot?.meta.run_name;
   return [
-    { title: runName ? `${runName} · Candlestick Results` : "Candlestick Results Dashboard" },
+    { title: runName ? `${runName} · Chart Pattern Results` : "Chart Pattern Results Dashboard" },
     {
       name: "description",
       content:
-        "Responsive experiment dashboard for candlestick model screening, profitability curves, and pattern evidence.",
+        "Responsive experiment dashboard for chart-pattern model screening, profitability curves, and pattern evidence.",
     },
   ];
 }
@@ -82,7 +82,7 @@ export function ErrorBoundary() {
     <Document>
       <main className="mx-auto flex min-h-screen max-w-3xl items-center px-6 py-24">
         <section className="glass-panel w-full p-10 sm:p-14">
-          <p className="eyebrow">Candlestick Results</p>
+          <p className="eyebrow">Chart Pattern Results</p>
           <h1 className="display-title mt-4 text-4xl">{title}</h1>
           <p className="mt-4 max-w-2xl text-base text-slate-600">{description}</p>
         </section>

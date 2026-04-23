@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from candlestick.data.timezone_audit import normalize_and_audit_timezone
+from chart_patterns.data.timezone_audit import normalize_and_audit_timezone
 
 
 def test_timezone_normalization_captures_dst_offsets(base_cfg):

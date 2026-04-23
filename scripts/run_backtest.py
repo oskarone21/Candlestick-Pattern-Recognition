@@ -14,9 +14,10 @@ except ImportError:
 
 ensure_repo_root()
 
-from candlestick.config import ensure_dir, load_config
-from candlestick.project_utils import load_processed_prices, run_name_from_cfg
-from candlestick.trading.backtest import run_backtest_for_predictions, save_backtest_outputs
+from chart_patterns.config import ensure_dir, load_config
+from chart_patterns.domain import DEFAULT_DECISION_THRESHOLD
+from chart_patterns.project_utils import load_processed_prices, run_name_from_cfg
+from chart_patterns.trading.backtest import run_backtest_for_predictions, save_backtest_outputs
 
 
 def run_backtest(cfg: dict) -> dict[str, object]:
@@ -64,7 +65,7 @@ def run_backtest(cfg: dict) -> dict[str, object]:
     for _, row in champions.iterrows():
         pattern = str(row["pattern"])
         pred_path = Path(row["predictions_path"])
-        threshold = float(row.get("threshold", 0.5))
+        threshold = float(row.get("threshold", DEFAULT_DECISION_THRESHOLD))
 
         if not pred_path.exists():
             continue

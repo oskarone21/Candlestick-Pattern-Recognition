@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from candlestick.project_utils import load_processed_prices, timeframe_to_minutes
+from chart_patterns.project_utils import load_processed_prices, timeframe_to_minutes
 
 
 def test_timeframe_to_minutes_supports_minute_and_hour_aliases():

@@ -30,6 +30,11 @@ export type ChartSeries = {
 const MARKER_SUFFIX = "__marker";
 const TRADE_SUFFIX = "__trade";
 const CURVE_SEED_OFFSET_MS = 60_000;
+const CHART_AXIS = "#64748b";
+const CHART_GRID = "rgba(148, 163, 184, 0.18)";
+const CHART_REFERENCE = "rgba(15,23,42,0.18)";
+const POSITIVE_BAR = "#0f766e";
+const NEGATIVE_BAR = "#b45309";
 
 function formatChartTick(value: string | number | undefined) {
   if (!value) {
@@ -249,19 +254,19 @@ export function ProfitCurveChart({ series }: { series: ChartSeries[] }) {
     >
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={rows} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
-          <ReferenceLine y={0} stroke="rgba(15,23,42,0.18)" strokeDasharray="4 6" />
-          <CartesianGrid stroke="rgba(148, 163, 184, 0.18)" vertical={false} />
+          <ReferenceLine y={0} stroke={CHART_REFERENCE} strokeDasharray="4 6" />
+          <CartesianGrid stroke={CHART_GRID} vertical={false} />
           <XAxis
             dataKey="exit_ts"
             tickFormatter={formatChartTick}
             minTickGap={36}
-            tick={{ fill: "#64748b", fontSize: 12 }}
+            tick={{ fill: CHART_AXIS, fontSize: 12 }}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
             tickFormatter={(value) => formatSignedCurrency(Number(value), true)}
-            tick={{ fill: "#64748b", fontSize: 12 }}
+            tick={{ fill: CHART_AXIS, fontSize: 12 }}
             tickLine={false}
             axisLine={false}
             width={88}
@@ -325,19 +330,19 @@ export function TradeFlowChart({ series }: { series: ChartSeries[] }) {
     >
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={rows} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
-          <ReferenceLine y={0} stroke="rgba(15,23,42,0.18)" strokeDasharray="4 6" />
-          <CartesianGrid stroke="rgba(148, 163, 184, 0.18)" vertical={false} />
+          <ReferenceLine y={0} stroke={CHART_REFERENCE} strokeDasharray="4 6" />
+          <CartesianGrid stroke={CHART_GRID} vertical={false} />
           <XAxis
             dataKey="exit_ts"
             tickFormatter={formatChartTick}
             minTickGap={36}
-            tick={{ fill: "#64748b", fontSize: 12 }}
+            tick={{ fill: CHART_AXIS, fontSize: 12 }}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
             tickFormatter={(value) => formatSignedCurrency(Number(value), true)}
-            tick={{ fill: "#64748b", fontSize: 12 }}
+            tick={{ fill: CHART_AXIS, fontSize: 12 }}
             tickLine={false}
             axisLine={false}
             width={88}
@@ -350,7 +355,7 @@ export function TradeFlowChart({ series }: { series: ChartSeries[] }) {
             animationDuration={700}
           >
             {rows.map((row) => (
-              <Cell key={row.exit_ts} fill={row.net_pnl >= 0 ? "#0f766e" : "#b45309"} />
+              <Cell key={row.exit_ts} fill={row.net_pnl >= 0 ? POSITIVE_BAR : NEGATIVE_BAR} />
             ))}
           </Bar>
         </BarChart>

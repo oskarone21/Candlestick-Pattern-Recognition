@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from candlestick.eval.label_sanity import (
+from chart_patterns.eval.label_sanity import (
     label_sanity_issues,
     summarize_pattern_dataset,
     summarize_pattern_events,

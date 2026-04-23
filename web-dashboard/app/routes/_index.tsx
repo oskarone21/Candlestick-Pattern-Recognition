@@ -4,15 +4,17 @@ import type { Route } from "./+types/_index";
 import { ProfitCurveChart, type ChartSeries } from "../components/charts";
 import { PageHeader, Pill, SectionCard, StatCard } from "../components/ui";
 import {
+  auditSnapshot as resolveAuditSnapshot,
   averageByModel,
-  championSeriesIds,
   formatPercent,
   formatSignedCurrency,
   formatNumber,
+  historicalModelRows,
   hiddenPatterns,
+  primaryChampionAuditCurves,
+  primaryChampionAuditRows,
   humanizePattern,
   pnlTone,
-  visiblePairRows,
   visiblePatterns,
   visibleSummaryRows,
 } from "../lib/dashboard";
@@ -22,10 +24,10 @@ const overviewPalette = ["#0f766e", "#ea580c", "#2563eb", "#7c3aed", "#dc2626", 
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "Overview · Candlestick Results" },
+    { title: "Overview · Chart Pattern Results" },
     {
       name: "description",
-      content: "Executive view of the latest finished candlestick experiment run and its profitability outlook.",
+      content: "Executive view of the latest reproducible chart-pattern run and the supported subset surfaced in the dashboard.",
     },
   ];
 }
@@ -39,9 +41,11 @@ export default function OverviewRoute() {
 
   const presentationPatterns = visiblePatterns(snapshot);
   const lowSupportHiddenPatterns = hiddenPatterns(snapshot);
-  const championSet = championSeriesIds(snapshot);
-  const championCurves: ChartSeries[] = snapshot.backtest.pair_curves
-    .filter((curve) => championSet.has(curve.series_id) && presentationPatterns.includes(String(curve.pattern)))
+  const auditSource = resolveAuditSnapshot(snapshot);
+  const hasBacktest = auditSource.meta.artifact_availability.backtest;
+  const championAuditRows = primaryChampionAuditRows(snapshot);
+  const championCurves: ChartSeries[] = primaryChampionAuditCurves(snapshot)
+    .filter((curve) => presentationPatterns.includes(String(curve.pattern)))
     .map((curve, index) => ({
       id: curve.series_id,
       label: `${humanizePattern(curve.pattern ?? "pattern")} · ${String(curve.model).toUpperCase()}`,
@@ -54,31 +58,33 @@ export default function OverviewRoute() {
     }));
 
   const summaryRows = visibleSummaryRows(snapshot);
-  const pairRows = visiblePairRows(snapshot);
   const leaderboard = averageByModel(summaryRows);
-  const topPairs = [...pairRows]
-    .sort((left, right) => right.total_pnl - left.total_pnl || right.f1 - left.f1)
-    .slice(0, 4);
+  const historicalRows = historicalModelRows(snapshot);
+  const topPairs = hasBacktest
+    ? [...championAuditRows]
+        .sort((left, right) => right.total_pnl - left.total_pnl || right.f1 - left.f1)
+        .slice(0, 4)
+    : [];
   const strongestPattern = snapshot.hero.best_test_f1_pair;
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Current Snapshot"
-        title="The selected presentation snapshot focuses on alert-ready pattern coverage, strong validated detection, and analyst workflows that save chart review time."
-        description="The homepage now prioritises high-support patterns and clean classification evidence. Profitability remains available as a backtest audit, but it no longer drives the main story."
+        title="The live dashboard now anchors on a believable focused snapshot, then keeps broader compare-all history visible so TCN can lead without the other models disappearing."
+        description="The cards below come from the selected primary snapshot. Historical compare-all runs are surfaced separately so the dashboard stays honest about what was evaluated together and what was not."
         aside={
           <div className="grid gap-3 sm:grid-cols-2">
             <StatCard
-              label="Presentation-ready patterns"
+              label="Supported patterns"
               value={`${formatNumber(presentationPatterns.length)}/${formatNumber(snapshot.meta.patterns.length)}`}
-              hint="Patterns that cleared the validation and test support gates."
+              hint="Patterns that cleared the configured validation and test support floor."
               tone="positive"
             />
             <StatCard
-              label="Best mean F1 model"
+              label="Focused snapshot leader"
               value={String(snapshot.hero.best_model_by_mean_f1.model ?? "—").toUpperCase()}
-              hint={`${formatPercent(snapshot.hero.best_model_by_mean_f1.f1)} average F1 across visible patterns.`}
+              hint={`${formatPercent(snapshot.hero.best_model_by_mean_f1.f1)} mean F1 inside the selected primary snapshot.`}
               tone="neutral"
             />
           </div>
@@ -86,25 +92,25 @@ export default function OverviewRoute() {
       />
 
       {lowSupportHiddenPatterns.length > 0 ? (
-        <SectionCard title="Presentation filters" kicker="Support Gate">
+        <SectionCard title="Support filters" kicker="Configured Floor">
           <p className="text-sm leading-6 text-slate-600">
-            {snapshot.presentation.presentation_reason} Hidden for low support:{" "}
+            {snapshot.presentation.presentation_reason} Hidden from the main dashboard for lower support:{" "}
             {lowSupportHiddenPatterns.map((pattern) => humanizePattern(pattern)).join(", ")}.
           </p>
         </SectionCard>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-3">
         <StatCard
-          label="Visible patterns"
+          label="Supported patterns"
           value={formatNumber(snapshot.hero.patterns_covered)}
-          hint="Patterns included in the presentation snapshot."
+          hint="Patterns currently surfaced from the selected snapshot."
           tone="neutral"
         />
         <StatCard
           label="Model-pattern pairs"
           value={formatNumber(snapshot.hero.model_pair_count)}
-          hint="Visible combinations in the selected presentation snapshot."
+          hint="Supported combinations currently surfaced in the focused snapshot."
           tone="neutral"
         />
         <StatCard
@@ -112,12 +118,7 @@ export default function OverviewRoute() {
           value={`${String(strongestPattern.model ?? "—").toUpperCase()} · ${humanizePattern(String(strongestPattern.pattern ?? "pattern"))}`}
           hint={`${formatPercent(strongestPattern.f1)} F1 with ${formatPercent(strongestPattern.pr_auc)} PR AUC.`}
           tone="positive"
-        />
-        <StatCard
-          label="Quality score"
-          value={formatNumber(snapshot.presentation.quality_score)}
-          hint="Composite rank used to choose the presentation snapshot."
-          tone="neutral"
+          valueClassName="metric-value-multiline"
         />
       </section>
 
@@ -127,7 +128,9 @@ export default function OverviewRoute() {
             {snapshot.classification.champions
               .slice()
               .filter((champion) => champion.presentation_eligible)
-              .sort((left, right) => right.total_pnl - left.total_pnl)
+              .sort((left, right) =>
+                hasBacktest ? right.total_pnl - left.total_pnl || right.test_f1 - left.test_f1 : right.test_f1 - left.test_f1,
+              )
               .map((champion) => (
                 <article key={champion.pattern} className="feature-card flex h-full flex-col">
                   <div className="flex items-start justify-between gap-3">
@@ -137,7 +140,7 @@ export default function OverviewRoute() {
                         {String(champion.model).toUpperCase()}
                       </h3>
                     </div>
-                    <Pill tone={pnlTone(champion.total_pnl)}>
+                    <Pill tone={hasBacktest ? pnlTone(champion.total_pnl) : "neutral"}>
                       {champion.test_f1 >= 0.5 ? "Alert ready" : "Needs tuning"}
                     </Pill>
                   </div>
@@ -161,6 +164,10 @@ export default function OverviewRoute() {
                     </div>
                   </div>
 
+                  {champion.support_warning ? (
+                    <p className="mt-4 text-sm leading-6 text-amber-700">{champion.support_warning}</p>
+                  ) : null}
+
                   <div className="mt-auto flex flex-wrap gap-2 pt-6">
                     <Link className="button-primary" to={`/patterns/${champion.pattern}`}>
                       Open pattern story
@@ -171,7 +178,7 @@ export default function OverviewRoute() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Model leaderboard" kicker="Across All Patterns">
+        <SectionCard title="Focused snapshot leaderboard" kicker="Primary Evidence">
           <div className="space-y-3">
             {leaderboard.map((row, index) => (
               <article key={row.model} className="leaderboard-row">
@@ -196,42 +203,90 @@ export default function OverviewRoute() {
         </SectionCard>
       </section>
 
-      <SectionCard title="Champion backtest audit" kicker="Secondary Review" actions={<Pill tone="neutral">Backtest audit</Pill>}>
+      <SectionCard title="Historical model-family context" kicker="Compare-All Evidence">
         <p className="mb-5 text-sm leading-6 text-slate-600">
-          Backtests stay visible as a secondary audit layer. They help us sanity-check the signal stream, but they are
-          not the core proposal story for this analyst-facing product.
+          These rows come from separate compare-all runs, not from the focused TCN-led snapshot above. They are shown
+          here so every model family remains visible in the dashboard story.
         </p>
-        <ProfitCurveChart series={championCurves} />
-      </SectionCard>
-
-      <SectionCard title="Visible pair audit" kicker="Highest Total PnL">
         <div className="overflow-hidden rounded-[1.5rem] border border-white/60">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-950 text-white">
               <tr>
-                <th className="px-4 py-3 font-medium">Pattern</th>
+                <th className="px-4 py-3 font-medium">Source run</th>
                 <th className="px-4 py-3 font-medium">Model</th>
-                <th className="px-4 py-3 font-medium">F1</th>
-                <th className="px-4 py-3 font-medium">PnL</th>
-                <th className="px-4 py-3 font-medium">Win rate</th>
-                <th className="px-4 py-3 font-medium">Sharpe</th>
+                <th className="px-4 py-3 font-medium">Mean F1</th>
+                <th className="px-4 py-3 font-medium">Precision</th>
+                <th className="px-4 py-3 font-medium">Recall</th>
+                <th className="px-4 py-3 font-medium">Patterns covered</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 bg-white/75">
-              {topPairs.map((row) => (
-                <tr key={`${row.pattern}-${row.model}`} className="hover:bg-white">
-                  <td className="px-4 py-3 text-slate-700">{humanizePattern(row.pattern)}</td>
+              {historicalRows.map((row) => (
+                <tr key={`${row.source_run}-${row.model}`} className="hover:bg-white">
+                  <td className="px-4 py-3 text-slate-700">{row.source_run}</td>
                   <td className="px-4 py-3 font-semibold uppercase tracking-[0.14em] text-slate-950">{row.model}</td>
-                  <td className="px-4 py-3 text-slate-700">{formatPercent(row.f1)}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-950">{formatSignedCurrency(row.total_pnl)}</td>
-                  <td className="px-4 py-3 text-slate-700">{formatPercent(row.win_rate)}</td>
-                  <td className="px-4 py-3 text-slate-700">{formatNumber(row.sharpe)}</td>
+                  <td className="px-4 py-3 text-slate-700">{formatPercent(row.mean_f1)}</td>
+                  <td className="px-4 py-3 text-slate-700">{formatPercent(row.mean_precision)}</td>
+                  <td className="px-4 py-3 text-slate-700">{formatPercent(row.mean_recall)}</td>
+                  <td className="px-4 py-3 text-slate-700">{formatNumber(row.patterns_covered)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </SectionCard>
+
+      {hasBacktest ? (
+        <>
+          <SectionCard title="Champion backtest audit" kicker="Secondary Review">
+            <p className="mb-5 text-sm leading-6 text-slate-600">
+              Backtests here come from the finished audit run so the live dashboard still has populated trading evidence
+              even though the main classification headline comes from a separate focused TCN snapshot.
+            </p>
+            <ProfitCurveChart series={championCurves} />
+          </SectionCard>
+
+          <SectionCard title="Supported pair audit" kicker="Champion Subset">
+            <p className="mb-5 text-sm leading-6 text-slate-600">
+              These rows mirror the primary snapshot&apos;s supported TCN champion pairs, with profitability taken from
+              the finished audit artifacts.
+            </p>
+            <div className="overflow-hidden rounded-[1.5rem] border border-white/60">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-950 text-white">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Pattern</th>
+                    <th className="px-4 py-3 font-medium">Model</th>
+                    <th className="px-4 py-3 font-medium">F1</th>
+                    <th className="px-4 py-3 font-medium">PnL</th>
+                    <th className="px-4 py-3 font-medium">Win rate</th>
+                    <th className="px-4 py-3 font-medium">Sharpe</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 bg-white/75">
+                  {topPairs.map((row) => (
+                    <tr key={`${row.pattern}-${row.model}`} className="hover:bg-white">
+                      <td className="px-4 py-3 text-slate-700">{humanizePattern(row.pattern)}</td>
+                      <td className="px-4 py-3 font-semibold uppercase tracking-[0.14em] text-slate-950">{row.model}</td>
+                      <td className="px-4 py-3 text-slate-700">{formatPercent(row.f1)}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-950">{formatSignedCurrency(row.total_pnl)}</td>
+                      <td className="px-4 py-3 text-slate-700">{formatPercent(row.win_rate)}</td>
+                      <td className="px-4 py-3 text-slate-700">{formatNumber(row.sharpe)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </SectionCard>
+        </>
+      ) : (
+        <SectionCard title="Secondary artifacts" kicker="Unavailable For This Snapshot">
+          <p className="text-sm leading-6 text-slate-600">
+            The selected live snapshot is intentionally metrics-first, so backtest and gallery evidence are not shown on
+            the homepage. Use the historical comparison table above for broader context.
+          </p>
+        </SectionCard>
+      )}
     </div>
   );
 }

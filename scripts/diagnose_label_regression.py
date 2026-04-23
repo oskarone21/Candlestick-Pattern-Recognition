@@ -14,17 +14,19 @@ except ImportError:
 
 ensure_repo_root()
 
-from candlestick.config import ensure_dir, load_config
-from candlestick.datasets.window_builder import build_pattern_dataset
-from candlestick.eval.label_sanity import (
+from chart_patterns.config import ensure_dir, load_config
+from chart_patterns.datasets.window_builder import build_pattern_dataset
+from chart_patterns.eval.label_sanity import (
     summarize_pattern_dataset,
     summarize_pattern_events,
     summarize_processed_prices,
     summarize_split_support,
 )
-from candlestick.labeling.pattern_rules import detect_pattern_events
-from candlestick.project_utils import allowed_patterns_from_cfg, load_processed_prices, run_name_from_cfg
+from chart_patterns.labeling.pattern_rules import detect_pattern_events
+from chart_patterns.project_utils import allowed_patterns_from_cfg, load_processed_prices, run_name_from_cfg
 from scripts.run_experiment_suite import _prepare_split
+
+DEFAULT_REFERENCE_DATASETS_DIR = "outputs/datasets/stageA_compare_all_no_optuna"
 
 
 def _save_json(path: Path, payload: Any) -> None:
@@ -132,8 +134,13 @@ def main() -> None:
     parser.add_argument("--set", dest="set_overrides", action="append", default=[])
     parser.add_argument(
         "--reference-datasets-dir",
-        default="outputs/datasets/stageA_compare_all_no_optuna",
-        help="Preserved reference datasets root to compare against.",
+        default=None,
+        help="Override the preserved reference datasets root to compare against.",
+    )
+    parser.add_argument(
+        "--reference-metrics-run-name",
+        default=None,
+        help="Override the metrics run name paired with the reference datasets directory.",
     )
     args = parser.parse_args()
 
@@ -149,8 +156,17 @@ def main() -> None:
         },
     }
 
-    reference_datasets_dir = Path(args.reference_datasets_dir)
-    reference_metrics_dir = Path(cfg["paths"].get("metrics_dir", "outputs/metrics")) / reference_datasets_dir.name
+    diagnostics_cfg = cfg.get("diagnostics", {}).get("label_regression", {})
+    reference_datasets_dir = Path(
+        args.reference_datasets_dir
+        or diagnostics_cfg.get("reference_datasets_dir", DEFAULT_REFERENCE_DATASETS_DIR)
+    )
+    reference_metrics_run_name = (
+        args.reference_metrics_run_name
+        or diagnostics_cfg.get("reference_metrics_run_name")
+        or reference_datasets_dir.name
+    )
+    reference_metrics_dir = Path(cfg["paths"].get("metrics_dir", "outputs/metrics")) / str(reference_metrics_run_name)
     reference = {
         "datasets_dir": str(reference_datasets_dir),
         "metrics_dir": str(reference_metrics_dir),

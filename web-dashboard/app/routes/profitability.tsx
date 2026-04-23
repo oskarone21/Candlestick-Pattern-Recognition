@@ -1,19 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router";
 
 import type { Route } from "./+types/profitability";
 import { ProfitCurveChart, TradeFlowChart, type ChartSeries } from "../components/charts";
-import { PageHeader, Pill, SectionCard, StatCard, ToggleGroup } from "../components/ui";
+import { EmptyState, PageHeader, SectionCard, StatCard, ToggleGroup } from "../components/ui";
 import {
-  championSeriesIds,
+  auditSnapshot as resolveAuditSnapshot,
   formatNumber,
   formatPercent,
   formatSignedCurrency,
   hiddenPatterns,
   humanizePattern,
   mean,
-  patternModelSeriesId,
   pnlTone,
+  primaryChampionAuditCurves,
+  primaryChampionAuditRows,
   sum,
   type BacktestPairRow,
   type CurveSeries,
@@ -40,7 +41,7 @@ export function meta({}: Route.MetaArgs) {
     { title: "Profitability · Candlestick Results" },
     {
       name: "description",
-      content: "Cumulative profitability, trade timeline overlays, and filters across models and patterns.",
+      content: "Cumulative profitability, trade timeline overlays, and filters across the supported subset of models and patterns.",
     },
   ];
 }
@@ -117,20 +118,41 @@ function checkboxTone(active: boolean) {
 export default function ProfitabilityRoute() {
   const { snapshot } = useOutletContext<DashboardOutletContext>();
   const [scope, setScope] = useState<Scope>("champion");
-  const presentationPatterns = snapshot ? visiblePatterns(snapshot) : [];
-  const [selectedModels, setSelectedModels] = useState<string[]>(snapshot?.meta.models ?? []);
-  const [selectedPatterns, setSelectedPatterns] = useState<string[]>(presentationPatterns);
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [selectedPatterns, setSelectedPatterns] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!snapshot) {
+      return;
+    }
+    const auditSource = resolveAuditSnapshot(snapshot);
+    setSelectedModels(auditSource.meta.models);
+    setSelectedPatterns(visiblePatterns(snapshot));
+  }, [snapshot]);
 
   if (!snapshot) {
     return null;
   }
 
+  const profitabilitySnapshot = resolveAuditSnapshot(snapshot);
+
+  if (!profitabilitySnapshot.meta.artifact_availability.backtest) {
+    return (
+      <EmptyState
+        title="Backtest audit unavailable for this snapshot"
+        description="The selected live snapshot is metrics-first, so profitability artifacts are intentionally not shown here. Use the broader historical context on the Overview and Models pages for comparison, or switch to a fully finished run if you need backtest evidence."
+      />
+    );
+  }
+
+  const presentationPatterns = visiblePatterns(snapshot);
   const lowSupportHiddenPatterns = hiddenPatterns(snapshot);
-  const championIds = championSeriesIds(snapshot);
-  const filteredPairRows = presentationPairRows(snapshot).filter(
+  const championPairRows = primaryChampionAuditRows(snapshot);
+  const championPairCurves = primaryChampionAuditCurves(snapshot);
+  const filteredPairRows = presentationPairRows(profitabilitySnapshot).filter(
     (row) => selectedModels.includes(row.model) && selectedPatterns.includes(row.pattern),
   );
-  const filteredPairCurves = snapshot.backtest.pair_curves.filter(
+  const filteredPairCurves = profitabilitySnapshot.backtest.pair_curves.filter(
     (curve) =>
       presentationPatterns.includes(String(curve.pattern)) &&
       selectedModels.includes(String(curve.model)) &&
@@ -139,12 +161,17 @@ export default function ProfitabilityRoute() {
 
   const visiblePairRows =
     scope === "champion"
-      ? filteredPairRows.filter((row) => championIds.has(patternModelSeriesId(row.pattern, row.model)))
+      ? championPairRows.filter(
+          (row) => selectedModels.includes(row.model) && selectedPatterns.includes(row.pattern),
+        )
       : filteredPairRows;
 
   const visibleSeries = (() => {
     if (scope === "champion") {
-      return filteredPairCurves.filter((curve) => championIds.has(curve.series_id));
+      return championPairCurves.filter(
+        (curve) =>
+          selectedModels.includes(String(curve.model)) && selectedPatterns.includes(String(curve.pattern)),
+      );
     }
     if (scope === "pair") {
       return filteredPairCurves;
@@ -183,8 +210,8 @@ export default function ProfitabilityRoute() {
     <div className="space-y-8">
       <PageHeader
         eyebrow="Backtest Audit"
-        title="Backtest curves remain visible as an audit layer, while the main proposal story stays anchored in analyst productivity and validated detection quality."
-        description="Use the filters below to inspect backtest behaviour without letting a weak or sparse run dominate the product narrative."
+        title="Champion mode now mirrors the main TCN story, while the other scopes broaden into the finished audit view for comparison."
+        description="Use Champion mode when you want the same supported TCN winners shown on the overview tab. Switch to Pairs, Models, or Patterns to explore the broader audit evidence without changing the main classification headline."
         aside={
           <div className="grid gap-3 sm:grid-cols-2">
             <StatCard
@@ -196,7 +223,7 @@ export default function ProfitabilityRoute() {
             <StatCard
               label="Visible trades"
               value={formatNumber(weightedTrades)}
-              hint={`${formatSignedCurrency(totalPnl)} combined PnL`}
+              hint={`${formatSignedCurrency(totalPnl, true)} combined PnL`}
               tone={pnlTone(totalPnl)}
             />
           </div>
@@ -213,9 +240,9 @@ export default function ProfitabilityRoute() {
       ) : null}
 
       {lowSupportHiddenPatterns.length > 0 ? (
-        <SectionCard title="Support gate" kicker="Hidden Patterns">
+        <SectionCard title="Support floor" kicker="Hidden Patterns">
           <p className="text-sm leading-6 text-slate-600">
-            Hidden from the backtest audit by default because validation or test support is too low:{" "}
+            Hidden from the default backtest audit because validation or test support stayed below the configured floor:{" "}
             {lowSupportHiddenPatterns.map((pattern) => humanizePattern(pattern)).join(", ")}.
           </p>
         </SectionCard>
@@ -237,12 +264,12 @@ export default function ProfitabilityRoute() {
           />
         }
       >
-        <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="grid gap-5">
           <div className="space-y-4">
             <div>
               <p className="metric-label">Models</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {snapshot.meta.models.map((model) => (
+                {profitabilitySnapshot.meta.models.map((model) => (
                   <button
                     key={model}
                     type="button"
@@ -277,10 +304,20 @@ export default function ProfitabilityRoute() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Total PnL" value={formatSignedCurrency(totalPnl)} hint="Sum of visible pair-level backtests." tone={pnlTone(totalPnl)} />
+            <StatCard
+              label="Total PnL"
+              value={formatSignedCurrency(totalPnl, true)}
+              hint="Sum of visible pair-level backtests."
+              tone={pnlTone(totalPnl)}
+            />
             <StatCard label="Win rate" value={formatPercent(weightedWinRate)} hint="Trade-weighted across visible pairs." tone="neutral" />
             <StatCard label="Profit factor" value={formatNumber(averageProfitFactor)} hint="Average of visible pair summaries." tone="neutral" />
-            <StatCard label="Worst drawdown" value={formatSignedCurrency(worstDrawdown)} hint="Most negative visible drawdown." tone="caution" />
+            <StatCard
+              label="Worst drawdown"
+              value={formatSignedCurrency(worstDrawdown, true)}
+              hint="Most negative visible drawdown."
+              tone="caution"
+            />
           </div>
         </div>
       </SectionCard>

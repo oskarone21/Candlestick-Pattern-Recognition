@@ -4,7 +4,7 @@ import copy
 
 import pandas as pd
 
-from candlestick.data.raw_quality import build_raw_quality_report
+from chart_patterns.data.raw_quality import build_raw_quality_report
 
 
 def test_raw_quality_report_counts_duplicates_and_timezone_fit(base_cfg):

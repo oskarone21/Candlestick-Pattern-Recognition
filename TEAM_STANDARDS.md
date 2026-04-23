@@ -68,11 +68,11 @@ print("Learning rate:", cfg["optimizer"]["lr"])
 Recommended run examples:
 
 ```bash
-python -m candlestick.cli.train \
+python scripts/run_experiment_suite.py \
   --config configs/config.yaml \
   --config-override configs/local/alex.experiment.yaml
 
-python -m candlestick.cli.train \
+python scripts/run_experiment_suite.py \
   --config configs/config.yaml \
   --set optimizer.lr=0.001 \
   --set training.epochs=10

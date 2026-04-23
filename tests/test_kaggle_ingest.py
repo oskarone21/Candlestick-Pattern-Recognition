@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from candlestick.data.kaggle_ingest import IngestError, normalize_intraday_schema
+from chart_patterns.data.kaggle_ingest import IngestError, normalize_intraday_schema
 
 
 def test_normalize_intraday_schema_maps_columns(base_cfg):

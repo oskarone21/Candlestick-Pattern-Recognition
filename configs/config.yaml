@@ -1,7 +1,7 @@
 # Shared single source of truth for reproducible runs.
 
 project:
-  name: candlestick-pattern-recognition
+  name: chart-pattern-recognition
   run_name: spy_15m_kaggle_suite_v1
   seed: 42
   device: auto                              # auto | cpu | cuda
@@ -10,9 +10,7 @@ approach:
   primary_model_type: sequence
   run_image_baseline: false
 
-# -----------------------------
 # Data source and preprocessing
-# -----------------------------
 data_source:
   provider: kagglehub
   kaggle_dataset: gratefuldata/intraday-stock-data-1-min-sp-500-200821
@@ -64,9 +62,7 @@ windowing:
   lookback_bars: 80
   stride: 1
 
-# -----------------------------
 # Labeling (schema v2)
-# -----------------------------
 labeling:
   schema_version: 2
   allowed_patterns:
@@ -177,9 +173,7 @@ labeling:
       require_first_trough_volume_greater_than_second: true
       breakout_volume_min_multiplier: 1.5
 
-# -----------------------------
 # Models and training
-# -----------------------------
 model:
   input_type: sequence
   architecture: tcn
@@ -191,12 +185,17 @@ model:
 
 model_selection:
   candidate_models:
+    - hgb
     - logreg
     - lstm
     - tcn
+    - transformer
   primary_selection_metric: f2
   precision_floor: 0.50
   recall_floor: 0.0
+  use_conservative_selection_scores: false
+  minimum_predicted_positive_support: 0
+  minimum_true_positive_support: 0
 
 training:
   batch_size: 64
@@ -235,6 +234,24 @@ evaluation:
     - f1
     - f2
     - pr_auc
+
+dashboard:
+  primary_run_name: dl_rerun_aug_windowminmax_stageAdata_20260419
+  artifact_run_name: rough_screen_all_models_2026_04_18_relaxed
+  comparison_run_names:
+    - stageA_compare_all_no_optuna
+    - stageB_optuna_coarse
+    - rough_screen_all_models_2026_04_18_relaxed
+  presentation:
+    minimum_validation_positive_support: 5
+    minimum_test_positive_support: 5
+    minimum_visible_patterns: 3
+    minimum_champion_f1: 0.25
+
+diagnostics:
+  label_regression:
+    reference_datasets_dir: outputs/datasets/stageA_compare_all_no_optuna
+    reference_metrics_run_name: stageA_compare_all_no_optuna
 
 optuna:
   enabled: true
