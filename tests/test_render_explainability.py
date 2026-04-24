@@ -12,6 +12,7 @@ from chart_patterns.domain import COLUMN_LABEL, COLUMN_SPLIT, COLUMN_WINDOW_END_
 from chart_patterns.datasets.window_builder import save_pattern_dataset
 from chart_patterns.explainability import (
     _explain_model,
+    _plot_temporal_heatmap,
     build_feature_names,
     prepare_pattern_data,
     resolve_pattern_artifacts,
@@ -211,3 +212,28 @@ def test_run_explainability_pipeline_emits_artifacts(tmp_path):
     feature_importance = pd.read_csv(feature_csv_path)
     assert set(feature_importance.columns) == {"feature_group", "mean_abs_shap"}
     assert feature_importance["mean_abs_shap"].iloc[0] > 0.0
+
+
+def test_temporal_heatmap_uses_light_readable_palette(tmp_path):
+    from PIL import Image
+
+    feature_columns = ["open", "high", "low", "close", "volume"]
+    frame = pd.DataFrame(
+        [
+            {
+                "bars_ago": bars_ago,
+                "feature_group": feature,
+                "mean_abs_shap": float((80 - bars_ago) * (idx + 1)) / 400.0,
+            }
+            for bars_ago in range(80)
+            for idx, feature in enumerate(feature_columns)
+        ]
+    )
+    output_path = tmp_path / "temporal_heatmap.png"
+
+    _plot_temporal_heatmap(frame, feature_columns, output_path)
+
+    assert output_path.exists()
+    pixels = np.asarray(Image.open(output_path).convert("RGB"), dtype=np.uint8)
+    near_black_ratio = np.all(pixels < 30, axis=2).mean()
+    assert near_black_ratio < 0.10

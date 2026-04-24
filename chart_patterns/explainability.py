@@ -549,7 +549,9 @@ def _plot_temporal_heatmap(frame: pd.DataFrame, feature_columns: list[str], outp
     pivot = pivot.sort_index(ascending=False)
 
     fig, ax = plt.subplots(figsize=(9, 6))
-    image = ax.imshow(pivot.to_numpy(), aspect="auto", cmap="magma")
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("white")
+    image = ax.imshow(pivot.to_numpy(), aspect="auto", cmap="YlGnBu")
     ax.set_xticks(np.arange(len(feature_columns)))
     ax.set_xticklabels(feature_columns, rotation=30, ha="right")
     y_step = max(len(pivot.index) // 10, 1)
@@ -559,6 +561,7 @@ def _plot_temporal_heatmap(frame: pd.DataFrame, feature_columns: list[str], outp
     ax.set_xlabel("Feature")
     ax.set_ylabel("Bars ago")
     ax.set_title("Mean |SHAP| by bar and feature")
+    ax.grid(color="#d9d9d9", linewidth=0.5, alpha=0.7)
     fig.colorbar(image, ax=ax, label="Mean |SHAP|")
     fig.tight_layout()
     fig.savefig(output_path, dpi=180)

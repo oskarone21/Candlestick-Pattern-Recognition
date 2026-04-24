@@ -84,6 +84,9 @@ def normalize_and_audit_timezone(
             out = out.dropna(subset=["ts_event"]).reset_index(drop=True)
 
     out["ts_event"] = out["ts_event"].dt.tz_convert(working_timezone)
+    out["ts_event"] = out["ts_event"].astype(
+        pd.DatetimeTZDtype(unit="ns", tz=working_timezone)
+    )
 
     report = {
         "rows": int(len(out)),

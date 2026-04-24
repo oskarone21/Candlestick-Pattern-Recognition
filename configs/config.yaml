@@ -248,11 +248,6 @@ dashboard:
     minimum_visible_patterns: 3
     minimum_champion_f1: 0.25
 
-diagnostics:
-  label_regression:
-    reference_datasets_dir: outputs/datasets/stageA_compare_all_no_optuna
-    reference_metrics_run_name: stageA_compare_all_no_optuna
-
 optuna:
   enabled: true
   tuned_models:
