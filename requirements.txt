@@ -1,23 +1,30 @@
 # Core data stack
-numpy==1.26.4
-pandas==2.2.3
+numpy==2.4.4
+pandas==3.0.2
 kagglehub[pandas-datasets]==1.0.0
 
 # Chart rendering and image handling
-matplotlib==3.9.2
+matplotlib==3.10.8
+# PyPI currently publishes mplfinance releases as prereleases only.
 mplfinance==0.12.10b0
+seaborn==0.13.2
 
 # Deep learning base packages. Install the CUDA build of torch on NVIDIA machines.
-torch==2.5.1
+torch==2.11.0
 
 # Training and evaluation
-scikit-learn==1.5.2
-shap==0.50.0
-optuna==3.6.1
-joblib==1.4.2
+scikit-learn==1.8.0
+shap==0.51.0
+optuna==4.8.0
+joblib==1.5.3
 
 # Utilities
-pyyaml==6.0.2
+pyyaml==6.0.3
 
 # Testing
-pytest==8.3.3
+pytest==9.0.3
+
+# Notebook execution
+ipykernel==7.2.0
+nbclient==0.10.4
+nbformat==5.10.4
