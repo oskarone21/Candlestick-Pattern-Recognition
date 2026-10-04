@@ -1,3 +1,16 @@
+# SL-TCN — Henry's pattern-recognition pipeline
+
+One-vs-rest **TCN** classifiers for Head & Shoulders, Inverse H&S, Double Top and Double Bottom on 15-minute bars.
+
+- **Labels:** causal Nadaraya–Watson smoothing (no look-ahead) + extrema + geometric/volume/breakout rules, scanned at 5 bandwidths and de-duplicated.
+- **Model:** TCN with last-timestep readout, focal loss + class weighting for ~1:10 imbalance, early stopping.
+- **Evaluation:** chronological train/val/test split with a one-look-back **embargo** between splits (no window shares bars across splits); threshold tuned on validation; headline metrics are **positive-class F1, precision, recall and PR-AUC** (macro F1 for reference only).
+- **Explainability:** SHAP GradientExplainer over (time step × OHLCV feature).
+
+Run `henry_pattern_recognition.ipynb` (code in `src/candlestick/`). Tests: `python -m pytest tests/test_henry_pipeline.py`.
+
+---
+
 # Automated Candlestick Chart Pattern Recognition
 
 This repository contains a deep learning project for automated chart-pattern recognition from futures OHLCV data.

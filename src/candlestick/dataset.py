@@ -145,12 +145,18 @@ def build_windows(
     pos_windows: list[tuple[np.ndarray, int]] = []
     neg_windows: list[tuple[np.ndarray, int]] = []
 
+    # Leakage guard: every window (not just its anchor) must lie entirely
+    # inside [bar_lo, bar_hi). Otherwise a val/test window's look-back can
+    # overlap bars that the training split already saw.
+    def _inside(start: int, end: int) -> bool:
+        return start >= max(0, bar_lo) and end <= bar_hi
+
     # --- Positive windows: anchored at breakout bar ---
     for c in candidates:
         if c.label == 1 and c.breakout_bar is not None:
             end = c.breakout_bar + 1
             start = end - lookback
-            if start >= 0 and end <= n:
+            if _inside(start, end):
                 window = ohlcv[start:end].copy()
                 pos_windows.append((window, 1))
 
@@ -162,7 +168,7 @@ def build_windows(
                 anchor = c.extrema_indices[-1]
                 end = anchor + 1
                 start = end - lookback
-                if start >= 0 and end <= n:
+                if _inside(start, end):
                     window = ohlcv[start:end].copy()
                     neg_windows.append((window, 0))
 
@@ -181,7 +187,7 @@ def build_windows(
 
     rng = np.random.default_rng(cfg["project"]["seed"])
     available = [
-        b for b in range(max(lookback, bar_lo), bar_hi)
+        b for b in range(max(lookback - 1, bar_lo + lookback - 1), bar_hi)
         if b not in positive_bars
     ]
     if available and needed > 0:

@@ -79,7 +79,12 @@ def evaluate_model(
         "precision_macro": lambda yt, yp: precision_score(yt, yp, average="macro", zero_division=0),
         "recall_macro": lambda yt, yp: recall_score(yt, yp, average="macro", zero_division=0),
         "f1_macro": lambda yt, yp: f1_score(yt, yp, average="macro", zero_division=0),
+        "precision_pos": lambda yt, yp: precision_score(yt, yp, pos_label=1, zero_division=0),
+        "recall_pos": lambda yt, yp: recall_score(yt, yp, pos_label=1, zero_division=0),
+        "f1_pos": lambda yt, yp: f1_score(yt, yp, pos_label=1, zero_division=0),
     }
+    # Always report positive-class metrics alongside whatever was requested.
+    requested = list(dict.fromkeys(list(requested) + ["precision_pos", "recall_pos", "f1_pos"]))
     for m in requested:
         if m in metric_fns:
             metrics[m] = float(metric_fns[m](y_true, y_pred))
@@ -313,3 +318,28 @@ def plot_shap_timeseries(
         plt.savefig(save_path, dpi=150, bbox_inches="tight")
         print(f"Saved: {save_path}")
     plt.show()
+
+
+def threshold_metrics(y_true: np.ndarray, y_prob_pos: np.ndarray, threshold: float) -> dict:
+    """Positive-class metrics at a given decision threshold.
+
+    ``y_prob_pos`` is the probability of the positive class. PR-AUC is
+    threshold-free and is the most informative single number when positives
+    are rare (~1:10 here).
+    """
+    from sklearn.metrics import average_precision_score
+
+    y_true = np.asarray(y_true)
+    y_pred = (np.asarray(y_prob_pos) >= threshold).astype(int)
+    has_pos = int((y_true == 1).sum()) > 0
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
+    return {
+        "threshold": float(threshold),
+        "precision": float(precision_score(y_true, y_pred, zero_division=0)),
+        "recall": float(recall_score(y_true, y_pred, zero_division=0)),
+        "f1": float(f1_score(y_true, y_pred, zero_division=0)),
+        "f1_macro": float(f1_score(y_true, y_pred, average="macro", zero_division=0)),
+        "pr_auc": float(average_precision_score(y_true, y_prob_pos)) if has_pos else 0.0,
+        "positive_rate": float(y_true.mean()) if len(y_true) else 0.0,
+        "tp": int(tp), "fp": int(fp), "fn": int(fn), "tn": int(tn),
+    }

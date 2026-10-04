@@ -164,8 +164,8 @@ def train_model(
         # --- Validate ---
         val_loss, val_metrics = _evaluate_epoch(model, val_loader, criterion, device, use_amp)
         history["val_loss"].append(val_loss)
-        for k in ["val_f1", "val_precision", "val_recall", "val_accuracy"]:
-            history[k].append(val_metrics[k])
+        for k in val_metrics:
+            history.setdefault(k, []).append(val_metrics[k])
 
         scheduler.step(val_loss)
 
@@ -174,7 +174,8 @@ def train_model(
                 f"Epoch {epoch:3d}/{epochs} | "
                 f"Train loss {train_loss:.4f} | "
                 f"Val loss {val_loss:.4f} | "
-                f"Val F1 {val_metrics['val_f1']:.4f}"
+                f"Val F1(macro) {val_metrics['val_f1']:.4f} | "
+                f"Val F1(pos) {val_metrics['val_f1_pos']:.4f}"
             )
 
         # Early stopping
@@ -240,6 +241,11 @@ def _evaluate_epoch(
         "val_precision": precision_score(y_true, y_pred, average="macro", zero_division=0),
         "val_recall": recall_score(y_true, y_pred, average="macro", zero_division=0),
         "val_accuracy": accuracy_score(y_true, y_pred),
+        # Positive-class metrics: the honest view under heavy class imbalance.
+        # Macro F1 averages in the easy negative class and inflates the score.
+        "val_f1_pos": f1_score(y_true, y_pred, pos_label=1, zero_division=0),
+        "val_precision_pos": precision_score(y_true, y_pred, pos_label=1, zero_division=0),
+        "val_recall_pos": recall_score(y_true, y_pred, pos_label=1, zero_division=0),
     }
     return val_loss, metrics
 
