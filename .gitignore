@@ -25,3 +25,9 @@ data/nq_1min_clean.csv
 outputs/
 logs/
 checkpoints/
+
+# Personal notes kept local (not part of the published branch)
+CLAUDE.md
+HANDOFF_REPORT.docx
+METHODOLOGY_QA.docx
+docs/WM9B7_Technical_Report_Bilingual-*.pdf

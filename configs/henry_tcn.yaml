@@ -1,0 +1,135 @@
+# SL-TCN experiment config (Henry). Merged on top of configs/config.yaml.
+# Merge order: configs/config.yaml → this file → CLI overrides
+# See TEAM_STANDARDS.md §2 for policy
+
+project:
+  run_name: henry_tcn_multibw_aug_v3
+
+# Private NQ futures 1-min data (not in repo, see README "Data")
+data_source:
+  file_path: data/nq_1min_clean.csv
+
+labeling:
+  # Scan all patterns at once instead of one-vs-rest
+  # This maximises training data for the initial model.
+  # active_pattern stays head_shoulders in shared config but
+  # our pipeline scans all types.
+
+  confirmation:
+    confirm_break_within_bars: 60
+    # 4% is for daily data. 15-min NQ intraday range ~1-2%.
+    breakout_confirmation_pct: 0.005
+
+  head_shoulders:
+    # Label H&S formations as positive even without confirmed neckline breakout.
+    # Rationale: only 6 breakout-confirmed H&S exist in 5yr NQ 15-min data.
+    # Removing breakout requirement gives ~19 formations — enough to train on.
+    # Trade-off: model detects shape, not confirmed reversal.
+    require_breakout_confirmation: true
+    # Non-consecutive scan: instead of requiring 5 strictly consecutive alternating
+    # extrema (peak-trough-peak-trough-peak), search all peak triplets and pick
+    # the deepest trough in each inter-peak interval as the neckline anchor.
+    # Jumps from ~19 confirmed to ~243 confirmed H&S in 5yr NQ 15-min data.
+    non_consecutive_scan: true
+    geometry:
+      max_peak_separation_bars: 250
+      shoulder_symmetry_tolerance_pct: 0.03
+      neckline_point_symmetry_tolerance_pct: 0.03
+
+  inverse_head_shoulders:
+    # Mirror non-consecutive scan for bullish reversal pattern.
+    non_consecutive_scan: true
+    geometry:
+      max_trough_separation_bars: 250
+      shoulder_symmetry_tolerance_pct: 0.03
+      neckline_point_symmetry_tolerance_pct: 0.03
+
+  double_top:
+    # Consecutive scan: preserves clean 3-point M structure {peak, trough, peak}.
+    # Non-consecutive scan distorts M-shape and causes real inner DTs to be dedup'd.
+    non_consecutive_scan: false
+    geometry:
+      max_separation_bars: 250
+      # prior_trend_pct=0.005 matches Kasho's setting; recovers ~169 confirmed samples.
+      # lookback_bars=80: 200-bar lookback was tested and degraded F1 (more restrictive).
+      prior_trend_pct: 0.005
+      prior_trend_lookback_bars: 80
+      peak_tolerance_pct: 0.04
+      min_pullback_pct: 0.003
+
+  double_bottom:
+    # Same rationale as double_top.
+    non_consecutive_scan: false
+    geometry:
+      max_separation_bars: 250
+      prior_trend_pct: 0.005
+      prior_trend_lookback_bars: 80
+      trough_tolerance_pct: 0.04
+      min_bounce_pct: 0.003
+
+  # Hard negative sampling: increase random negatives for more training data
+  labeling_policy:
+    hard_negative_sampling:
+      enabled: true
+      include_partial_patterns: true
+      include_failed_breakouts: true
+      # 1:10 ratio gives ~10× more negatives to boost training set size
+      target_positive_to_negative_ratio: "1:10"
+
+  extrema_detection:
+    smoothing:
+      bandwidth:
+        selection_method: fixed
+        fixed_value: 5.0
+
+  # H&S/IHS: multi-bandwidth enabled (non-consecutive scan benefits from varied scales).
+  # DT/DB: overridden to enabled=false in notebook per-pattern scan — single AICc
+  #        bandwidth gives consistent M/W shapes and dramatically improves DT F1.
+  multi_bandwidth:
+    enabled: true
+    bandwidths: [3, 5, 8, 10, 15]
+    dedup_proximity_bars: 80
+    filter_nested: false
+
+windowing:
+  # Default lookback. H&S/IHS use 160 to capture the full formation (left shoulder
+  # / left trough often falls outside an 80-bar window). Double Top/Bottom keep 80
+  # because sample counts are small enough that a larger input hurts generalisation.
+  lookback_bars: 160
+  per_pattern_lookback:
+    double_top: 80
+    double_bottom: 80
+
+training:
+  epochs: 60
+  early_stopping_patience: 10
+  # Focal loss addresses the severe class imbalance (12 positives vs 120 negatives).
+  # gamma=2.0 down-weights easy negatives; increase to 3-4 if model still collapses.
+  loss: focal
+  focal_loss:
+    gamma: 2.0
+
+optimizer:
+  lr: 0.0002
+  weight_decay: 0.001
+
+evaluation:
+  # Optimal decision threshold found by val-set sweep (threshold=0.5 gives F1=0.43).
+  # Applied at inference time: predict positive if P(positive) >= decision_threshold.
+  decision_threshold: 0.59
+
+augmentation:
+  enabled: true
+  # Each confirmed positive window produces 4 extra augmented copies.
+  # 108 originals × 4 = 432 extra → ~540 positives in training set.
+  positive_multiplier: 2
+  techniques:
+    jitter:
+      enabled: true
+      sigma: 0.002        # 0.2% proportional price noise
+    magnitude_scale:
+      enabled: true
+      scale_range: 0.03   # uniform ±3% price/volume scaling
+    time_warp:
+      enabled: true
+      warp_factor: 0.1    # ±10% time-axis distortion

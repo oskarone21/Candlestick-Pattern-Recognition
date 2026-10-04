@@ -1,17 +1,53 @@
-# SL-TCN — Henry's pattern-recognition pipeline
+# SL-TCN — Chart-pattern recognition with TCNs (Henry Liao)
 
-One-vs-rest **TCN** classifiers for Head & Shoulders, Inverse H&S, Double Top and Double Bottom on 15-minute bars.
+This branch is **my individual modelling pipeline** for the WM9B7 group project, in which each team member built their own model independently. It detects four classic chart patterns on 15-minute NQ futures bars: Head & Shoulders, Inverse Head & Shoulders, Double Top and Double Bottom.
 
-- **Labels:** causal Nadaraya–Watson smoothing (no look-ahead) + extrema + geometric/volume/breakout rules, scanned at 5 bandwidths and de-duplicated.
-- **Model:** TCN with last-timestep readout, focal loss + class weighting for ~1:10 imbalance, early stopping.
-- **Evaluation:** chronological train/val/test split with a one-look-back **embargo** between splits (no window shares bars across splits); threshold tuned on validation; headline metrics are **positive-class F1, precision, recall and PR-AUC** (macro F1 for reference only).
+## Results (held-out test split, leakage-guarded)
+
+| Pattern | Test positives | F1 (positive class) | Precision | Recall | PR-AUC |
+|---|---:|---:|---:|---:|---:|
+| Head & Shoulders | 19 | 0.80 | 0.76 | 0.84 | 0.84 |
+| Inverse H&S | 33 | 0.67 | 0.86 | 0.55 | 0.76 |
+| Double Top | 19 | 0.54 | 0.56 | 0.53 | 0.69 |
+| Double Bottom | 36 | 0.58 | 0.49 | 0.72 | 0.67 |
+| **Mean** | | **0.65** | | | **0.74** |
+
+Positives are rare (~1:10), so the headline metric is **positive-class F1 and PR-AUC**. Macro F1 (mean 0.81) averages in the easy negative class and overstates performance; it is reported in the notebook for reference only. Test sets contain only 19–36 positives per pattern, so per-pattern scores carry wide uncertainty.
+
+## What I built
+
+- **Labelling:** causal Nadaraya–Watson smoothing (no look-ahead) → extrema → geometric, volume and breakout-confirmation rules, following Lo, Mamaysky & Wang (2000). Scanning at 5 bandwidths and de-duplicating raised confirmed samples from 12 (single bandwidth) to several hundred.
+- **Model:** one-vs-rest TCN binary classifiers with last-timestep readout; focal loss + class weighting for imbalance; training-only augmentation (jitter, magnitude scaling, time warp); early stopping.
+- **Evaluation:** chronological train/val/test split with a one-look-back **embargo** between splits, so no window shares any bar across splits; decision threshold tuned on validation only.
 - **Explainability:** SHAP GradientExplainer over (time step × OHLCV feature).
+- **Ablation:** nested-candidate filtering (notebook section 8).
 
-Run `henry_pattern_recognition.ipynb` (code in `src/candlestick/`). Tests: `python -m pytest tests/test_henry_pipeline.py`.
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `henry_pattern_recognition.ipynb` | End-to-end run with outputs (data → labels → training → evaluation → SHAP → ablation) |
+| `src/candlestick/` | Pipeline code: `smoothing`, `labeling`, `dataset`, `model`, `training`, `evaluation` |
+| `configs/henry_tcn.yaml` | Experiment config used for the results above (merged on top of `configs/config.yaml`) |
+| `tests/test_henry_pipeline.py` | Split-leakage and metric tests |
+| `SL_LSTM_SHAP.ipynb`, `baseline/` | Earlier LSTM + SHAP baseline that preceded the TCN pipeline |
+
+## How to run
+
+```bash
+pip install -r requirements.txt          # macOS: requirements.macos.txt
+python -m pytest tests/test_henry_pipeline.py
+jupyter lab henry_pattern_recognition.ipynb
+```
+
+**Data:** the notebook expects 1-minute NQ futures bars at `data/nq_1min_clean.csv` (columns `ts_event, Open, High, Low, Close, Volume`; 2021-01 to 2026-01). The file was shared privately within the team and is not redistributed here.
 
 ---
 
-# Automated Candlestick Chart Pattern Recognition
+<details>
+<summary>Original team README (shared project context)</summary>
+
+## Automated Candlestick Chart Pattern Recognition
 
 This repository contains a deep learning project for automated chart-pattern recognition from futures OHLCV data.
 
@@ -19,15 +55,15 @@ The updated project approach is hybrid:
 - Primary path: rule-based pattern labeling + sequence modeling on OHLCV windows
 - Optional comparison path: candlestick image rendering + CNN baseline
 
-## Important data file note
+### Important data file note
 
 Before running the project, manually place `nq_1min.csv` inside the `data/` folder (`data/nq_1min.csv`). This file is too large to store in this GitHub repository.
 
-## Project goal
+### Project goal
 
 Investigate whether objective, rule-defined chart patterns can be learned from market data, and compare sequence-based models against optional image-based baselines.
 
-## Modeling approach
+### Modeling approach
 
 1. Smooth 15-minute close prices with Nadaraya-Watson kernel regression and extract extrema from first/second derivative conditions.
 2. Build strict geometric labels for head and shoulders, inverse head and shoulders, double top, and double bottom.
@@ -43,7 +79,7 @@ Why this approach:
 - Sequence models use raw market structure directly and avoid chart-rendering artifacts.
 - Optional image baseline still lets the team test the original vision idea.
 
-## Academic basis and justification
+### Academic basis and justification
 
 The labeling schema in `configs/config.yaml` and formulas in `PATTERNS_EXPLAINED.md` are based on the following literature:
 
@@ -54,11 +90,11 @@ The labeling schema in `configs/config.yaml` and formulas in `PATTERNS_EXPLAINED
 - Hurvich, Simonoff, and Tsai (1998): improved AIC (AICc) for nonparametric smoothing parameter selection. Link: `https://doi.org/10.1111/1467-9868.00125`
 - Bulkowski (3rd ed.): empirical breakout and volume confirmation heuristics used as practical bounds in configuration.
 
-## Team development standards
+### Team development standards
 
 See `TEAM_STANDARDS.md` for shared coding conventions, config usage rules, and AI-assisted development practices. This keeps team contributions consistent and prevents accidental drift from the shared configuration and workflow.
 
-## Configuration
+### Configuration
 
 The single source of truth is `configs/config.yaml`.
 
@@ -66,7 +102,7 @@ The single source of truth is `configs/config.yaml`.
 - Use local override files for personal experiments.
 - `chart_images` controls candlestick rendering and is only used when image input is enabled.
 
-## Tech stack
+### Tech stack
 
 - Data processing: `numpy`, `pandas`
 - Chart rendering and image handling: `matplotlib`, `mplfinance`, `pillow`, `opencv-python-headless`
@@ -77,14 +113,14 @@ The single source of truth is `configs/config.yaml`.
 
 All pinned versions are listed in `requirements.txt`.
 
-## Prerequisites
+### Prerequisites
 
 - Git
 - Docker Desktop, or Docker Engine with Compose plugin
 - For GPU mode: NVIDIA GPU, recent NVIDIA drivers, and NVIDIA container runtime support
 - Optional local setup: Python virtual environment support
 
-## Docker workflow (main setup)
+### Docker workflow (main setup)
 
 Docker is the shared Python environment for this project:
 
@@ -92,14 +128,14 @@ Docker is the shared Python environment for this project:
 - The container runs scripts and Jupyter Lab.
 - The repository folder is mounted into the container, so notebooks and outputs persist on your machine.
 
-### 1) Clone the repository
+#### 1) Clone the repository
 
 ```bash
 git clone https://github.com/oskarone21/Candlestick-Pattern-Recognition.git
 cd Candlestick-Pattern-Recognition
 ```
 
-### 2) Build the Docker image
+#### 2) Build the Docker image
 
 ```bash
 docker compose build
@@ -111,9 +147,9 @@ If you are using Apple Silicon and hit an architecture issue:
 DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose build
 ```
 
-## Run the container
+### Run the container
 
-### Option 1: Open a shell
+#### Option 1: Open a shell
 
 GPU mode:
 
@@ -127,7 +163,7 @@ CPU mode:
 docker compose -f docker-compose.cpu.yml run --rm app bash
 ```
 
-### Option 2: Run Jupyter Lab (recommended)
+#### Option 2: Run Jupyter Lab (recommended)
 
 GPU mode:
 
@@ -149,7 +185,7 @@ http://localhost:8888
 
 Jupyter prints an access token in the terminal when it starts.
 
-## Automatic GPU/CPU selection
+### Automatic GPU/CPU selection
 
 The helper script checks Docker runtime support. If NVIDIA runtime is available, it uses GPU mode; otherwise it falls back to CPU mode.
 
@@ -163,7 +199,7 @@ Pass a command directly if needed:
 bash scripts/dev-shell.sh python -c "import torch; print(torch.cuda.is_available())"
 ```
 
-## Verify CUDA availability
+### Verify CUDA availability
 
 Inside the container, run:
 
@@ -176,13 +212,13 @@ Expected output:
 - Mac or CPU mode: `CUDA available: False`
 - GPU machines: `CUDA available: True` and a GPU name
 
-## Working with notebooks
+### Working with notebooks
 
 Create notebooks inside this repository (for example in `notebooks/`). Because the project folder is mounted into the container, notebook files persist locally and can be committed to Git.
 
-## Optional local setup (without Docker)
+### Optional local setup (without Docker)
 
-### macOS Apple Silicon
+#### macOS Apple Silicon
 
 Use the dedicated local requirements file. The main `requirements.txt` is pinned for the team's CUDA/Docker workflow and is not appropriate for Apple Silicon.
 
@@ -197,7 +233,7 @@ Quick device check:
 python -c "import torch; print('MPS available:', torch.backends.mps.is_available())"
 ```
 
-### Linux / Windows with NVIDIA CUDA
+#### Linux / Windows with NVIDIA CUDA
 
 macOS/Linux:
 
@@ -217,7 +253,7 @@ pip install --upgrade pip
 pip install --extra-index-url https://download.pytorch.org/whl/cu124 -r requirements.txt
 ```
 
-## Key project files
+### Key project files
 
 - `Dockerfile` - CUDA-enabled PyTorch base image and dependency installation
 - `docker-compose.yml` - default Docker Compose configuration with GPU access
@@ -228,13 +264,13 @@ pip install --extra-index-url https://download.pytorch.org/whl/cu124 -r requirem
 - `.dockerignore` - excludes large or temporary files from Docker build context
 - `requirements.txt` - pinned Python package versions
 
-## Troubleshooting
+### Troubleshooting
 
-### Docker is not running
+#### Docker is not running
 
 Start Docker Desktop (or Docker daemon) before running Compose commands.
 
-### Port 8888 is already in use
+#### Port 8888 is already in use
 
 Run Jupyter on another port:
 
@@ -244,7 +280,7 @@ docker compose run --rm --service-ports app jupyter lab --ip=0.0.0.0 --port=8890
 
 Then open `http://localhost:8890`.
 
-### No GPU detected
+#### No GPU detected
 
 Use CPU mode:
 
@@ -252,6 +288,8 @@ Use CPU mode:
 docker compose -f docker-compose.cpu.yml run --rm app bash
 ```
 
-### Apple Silicon
+#### Apple Silicon
 
 Apple Silicon does not support CUDA. Use CPU mode.
+
+</details>
