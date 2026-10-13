@@ -218,6 +218,20 @@ def build_windows(
     return X, y
 
 
+def normalize_windows(X: np.ndarray) -> np.ndarray:
+    """Per-window, per-feature z-score, as seen by the model at train time.
+
+    Every consumer of the model (training, evaluation, SHAP) must go through
+    this function so inputs are always on the scale the model was trained on.
+    """
+    X = X.astype(np.float32)
+    if len(X) == 0:
+        return X
+    means = X.mean(axis=1, keepdims=True)
+    stds = X.std(axis=1, keepdims=True) + 1e-8
+    return (X - means) / stds
+
+
 class PatternDataset(Dataset):
     """PyTorch dataset wrapping OHLCV windows and binary labels."""
 
@@ -230,14 +244,8 @@ class PatternDataset(Dataset):
         normalize : bool
             If True, per-window z-score normalisation on each feature.
         """
-        self.X = X.astype(np.float32)
+        self.X = normalize_windows(X) if normalize else X.astype(np.float32)
         self.y = y.astype(np.int64)
-
-        if normalize and len(X) > 0:
-            # Per-window, per-feature z-score
-            means = self.X.mean(axis=1, keepdims=True)
-            stds = self.X.std(axis=1, keepdims=True) + 1e-8
-            self.X = (self.X - means) / stds
 
     def __len__(self) -> int:
         return len(self.y)

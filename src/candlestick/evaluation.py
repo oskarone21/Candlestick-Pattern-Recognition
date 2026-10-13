@@ -204,10 +204,11 @@ def compute_shap_values(
     model: nn.Module,
     X_background: np.ndarray,
     X_explain: np.ndarray,
-    n_background: int = 100,
+        n_background: int = 100,
     device: torch.device | None = None,
+    normalize: bool = True,
 ) -> np.ndarray:
-    """Compute SHAP values for the positive class using DeepExplainer.
+    """Compute SHAP values for the positive class using GradientExplainer.
 
     Parameters
     ----------
@@ -220,6 +221,11 @@ def compute_shap_values(
     n_background : int
         Number of background samples for DeepExplainer (more = slower but stable).
     device : torch.device or None
+    
+    normalize : bool
+        If True (default), apply the same per-window z-score the model was
+        trained with (``dataset.normalize_windows``) to both the background
+        and the explained samples. Pass raw OHLCV windows; do not pre-normalise.
 
     Returns
     -------
@@ -233,6 +239,10 @@ def compute_shap_values(
         device = next(model.parameters()).device
 
     model.eval()
+    if normalize:
+        from candlestick.dataset import normalize_windows
+        X_background = normalize_windows(X_background)
+        X_explain = normalize_windows(X_explain)
     idx = np.random.default_rng(42).choice(len(X_background), size=min(n_background, len(X_background)), replace=False)
     bg = torch.tensor(X_background[idx], dtype=torch.float32).to(device)
     explain = torch.tensor(X_explain, dtype=torch.float32).to(device)
