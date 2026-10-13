@@ -79,10 +79,12 @@ class TCN(nn.Module):
         if num_channels is None:
             num_channels = [64, 64, 128, 128]
 
+        self.kernel_size = kernel_size
+        self.dilations = [2 ** i for i in range(len(num_channels))]
+
         layers: list[nn.Module] = []
         in_ch = input_size
-        for i, out_ch in enumerate(num_channels):
-            dilation = 2 ** i
+        for out_ch, dilation in zip(num_channels, self.dilations):
             layers.append(
                 _CausalConv1dBlock(in_ch, out_ch, kernel_size, dilation, dropout)
             )
@@ -90,6 +92,14 @@ class TCN(nn.Module):
         self.network = nn.Sequential(*layers)
         self.dropout = nn.Dropout(dropout)
         self.classifier = nn.Linear(num_channels[-1], num_classes)
+
+    def receptive_field(self) -> int:
+        """Number of input time steps that can influence the last-step output.
+
+        Each block has two causal convolutions with the same dilation, so
+        RF = 1 + 2 * (kernel_size - 1) * sum(dilations).
+        """
+        return 1 + 2 * (self.kernel_size - 1) * sum(self.dilations)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """x: (batch, seq_len, features) → logits (batch, num_classes)."""
@@ -183,6 +193,8 @@ def build_model(cfg: dict) -> nn.Module:
         return TCN(
             input_size=input_size,
             num_classes=num_classes,
+            num_channels=mcfg.get("num_channels"),
+            kernel_size=mcfg.get("kernel_size", 3),
             dropout=dropout,
         )
     elif arch == "lstm":

@@ -91,6 +91,13 @@ labeling:
     dedup_proximity_bars: 80
     filter_nested: false
 
+model:
+  # 6 TCN blocks, kernel 3, dilations 1..32 -> receptive field 1 + 4*63 = 253 bars,
+  # which covers the longest window (160 bars). The previous default
+  # [64, 64, 128, 128] only reached 61 bars.
+  num_channels: [64, 64, 128, 128, 128, 128]
+  kernel_size: 3
+
 windowing:
   # Default lookback. H&S/IHS use 160 to capture the full formation (left shoulder
   # / left trough often falls outside an 80-bar window). Double Top/Bottom keep 80
