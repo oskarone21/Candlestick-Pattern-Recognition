@@ -4,23 +4,56 @@ This branch is **my individual modelling pipeline** for the WM9B7 group project,
 
 ## Results (held-out test split, leakage-guarded)
 
-| Pattern | Test positives | F1 (positive class) | Precision | Recall | PR-AUC |
-|---|---:|---:|---:|---:|---:|
-| Head & Shoulders | 19 | 0.80 | 0.76 | 0.84 | 0.84 |
-| Inverse H&S | 33 | 0.67 | 0.86 | 0.55 | 0.76 |
-| Double Top | 19 | 0.54 | 0.56 | 0.53 | 0.69 |
-| Double Bottom | 36 | 0.58 | 0.49 | 0.72 | 0.67 |
-| **Mean** | | **0.65** | | | **0.74** |
+Mean ± std over **3 random seeds** (42, 43, 44); data, splits and augmentation are identical across seeds, only initialisation and batch order change.
 
-Positives are rare (~1:10), so the headline metric is **positive-class F1 and PR-AUC**. Macro F1 (mean 0.81) averages in the easy negative class and overstates performance; it is reported in the notebook for reference only. Test sets contain only 19–36 positives per pattern, so per-pattern scores carry wide uncertainty.
+| Pattern | Test positives | F1 (positive class) | PR-AUC |
+|---|---:|---:|---:|
+| Head & Shoulders | 19 | 0.80 ± 0.02 | 0.81 ± 0.03 |
+| Inverse H&S | 33 | 0.59 ± 0.04 | 0.75 ± 0.03 |
+| Double Top | 19 | 0.59 ± 0.04 | 0.68 ± 0.04 |
+| Double Bottom | 36 | 0.57 ± 0.07 | 0.61 ± 0.05 |
+| **Mean** | | **0.64 ± 0.03** | **0.71 ± 0.00** |
+
+Positives are rare (~1:10 in validation/test), so the headline metric is **positive-class F1 and PR-AUC**. Macro F1 (about 0.79 at the primary seed) averages in the easy negative class and overstates performance; it is reported in the notebook for reference only. Test sets contain only 19–36 positives per pattern, so per-pattern scores carry wide uncertainty — a single run can move mean F1 by ±0.03, which is why results are averaged over seeds.
+
+### Architecture check: receptive field vs window
+
+The original 4-block TCN (kernel 3, dilations 1–8) has a receptive field of 61 bars, shorter than the 160-bar H&S windows, so the earliest bars could not influence the prediction. A 6-block variant (receptive field 253 bars, covering the full window) was trained under identical conditions and compared on **validation** mean positive-class F1 over the same 3 seeds:
+
+| Variant | Receptive field | Validation F1 | Test F1 | Test PR-AUC |
+|---|---:|---:|---:|---:|
+| 4 blocks (selected) | 61 | 0.707 ± 0.019 | 0.637 ± 0.027 | 0.712 ± 0.004 |
+| 6 blocks | 253 | 0.701 ± 0.012 | 0.586 ± 0.010 | 0.671 ± 0.025 |
+
+The deeper model did not help and overfits earlier (best epoch 2–7 vs 5–23). Windows end at the breakout bar and the confirmation rule requires the breakout within 60 bars of the right shoulder, so the discriminative evidence sits in the last ~60 bars, which the 4-block model already covers. Note the 6-block model also has about twice the parameters, so depth and capacity are confounded in this comparison.
+
+### SHAP (after fixing input normalisation)
+
+An earlier SHAP run explained **raw** OHLCV windows while the model was trained on per-window z-scored inputs; those attributions (mean |SHAP| 80–280) were invalid. After routing SHAP through the same normalisation, mean |SHAP| per feature (test positives, primary seed) is:
+
+| Pattern | open | high | low | close | volume |
+|---|---:|---:|---:|---:|---:|
+| Head & Shoulders | 0.010 | 0.008 | **0.018** | 0.015 | 0.008 |
+| Inverse H&S | 0.007 | 0.008 | 0.007 | **0.010** | 0.007 |
+| Double Top | 0.011 | 0.010 | **0.015** | 0.013 | 0.010 |
+| Double Bottom | 0.009 | 0.010 | 0.010 | 0.012 | **0.013** |
+
+Differences between features are modest (≤2×), so no single feature dominates. The low price carries the most weight for the two bearish patterns, consistent with their confirmation being a close below the neckline.
 
 ## What I built
 
 - **Labelling:** causal Nadaraya–Watson smoothing (no look-ahead) → extrema → geometric, volume and breakout-confirmation rules, following Lo, Mamaysky & Wang (2000). Scanning at 5 bandwidths and de-duplicating raised confirmed samples from 12 (single bandwidth) to several hundred.
-- **Model:** one-vs-rest TCN binary classifiers with last-timestep readout; focal loss + class weighting for imbalance; training-only augmentation (jitter, magnitude scaling, time warp); early stopping.
-- **Evaluation:** chronological train/val/test split with a one-look-back **embargo** between splits, so no window shares any bar across splits; decision threshold tuned on validation only.
-- **Explainability:** SHAP GradientExplainer over (time step × OHLCV feature).
+- **Model:** one-vs-rest TCN binary classifiers with last-timestep readout; focal loss + class weighting for imbalance; training-only augmentation (jitter, magnitude scaling, time warp); early stopping; `TCN.receptive_field()` is asserted against the window length.
+- **Evaluation:** chronological train/val/test split with a one-look-back **embargo** between splits (`dataset.chronological_split_with_embargo`, unit-tested), so no window shares any bar across splits; decision threshold tuned on validation only; architecture selected on validation over 3 seeds; test set used for reporting only.
+- **Explainability:** SHAP GradientExplainer over (time step × OHLCV feature), computed on the same normalised inputs the model was trained on.
 - **Ablation:** nested-candidate filtering (notebook section 8).
+
+## Known limitations
+
+- **Window anchoring differs between classes.** Positive windows end at the confirmed breakout bar; hard-negative windows (valid geometry, no confirmed breakout within 60 bars) end at the right shoulder. The model can therefore separate the classes partly from how the window ends rather than from the pattern itself, and the task is post-hoc confirmation, not prediction. Aligning both classes to the right shoulder (predict whether a breakout will follow) is the natural next step; it would make the task harder and the scores lower, but more meaningful.
+- **Small test sets** (19–36 positives per pattern): per-pattern F1 has wide uncertainty; only the seed-averaged mean should be quoted.
+- **Rule-based labels:** the model learns to reproduce the labelling rules, not ground truth. Label parameters (0.5% breakout, 60-bar horizon, 3% symmetry, 1.2× volume) were set by hand and not tuned.
+- **Depth vs capacity confounded** in the 4- vs 6-block comparison (see above).
 
 ## Repository layout
 
@@ -29,7 +62,7 @@ Positives are rare (~1:10), so the headline metric is **positive-class F1 and PR
 | `henry_pattern_recognition.ipynb` | End-to-end run with outputs (data → labels → training → evaluation → SHAP → ablation) |
 | `src/candlestick/` | Pipeline code: `smoothing`, `labeling`, `dataset`, `model`, `training`, `evaluation` |
 | `configs/henry_tcn.yaml` | Experiment config used for the results above (merged on top of `configs/config.yaml`) |
-| `tests/test_henry_pipeline.py` | Split-leakage and metric tests |
+| `tests/test_henry_pipeline.py` | Split-leakage, embargo and metric tests |
 | `SL_LSTM_SHAP.ipynb`, `baseline/` | Earlier LSTM + SHAP baseline that preceded the TCN pipeline |
 
 ## How to run

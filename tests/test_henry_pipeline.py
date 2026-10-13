@@ -47,3 +47,30 @@ def test_positive_f1_is_not_inflated_by_negatives():
     m = threshold_metrics(y_true, y_prob, 0.5)
     assert m["recall"] == 0.3
     assert m["f1"] < m["f1_macro"]
+
+
+
+def test_chronological_split_has_full_lookback_embargo():
+    from candlestick.dataset import chronological_split_with_embargo, anchor_bar
+
+    cfg = {**CFG, "evaluation": {"train_ratio": 0.6, "val_ratio": 0.2, "test_ratio": 0.2}}
+    # 10 candidates, anchors every 50 bars, deliberately given out of order.
+    anchors = [450, 50, 300, 100, 500, 150, 350, 200, 400, 250]
+    cands = [_cand(1, [a - 10, a - 5, a - 2], a) for a in anchors]
+
+    sp = chronological_split_with_embargo(cands, cfg)
+
+    # Sizes follow the ratios and the order is chronological.
+    assert [len(sp["train"]), len(sp["val"]), len(sp["test"])] == [6, 2, 2]
+    assert [anchor_bar(c) for c in sp["train"]] == [50, 100, 150, 200, 250, 300]
+    assert [anchor_bar(c) for c in sp["val"]] == [350, 400]
+    assert [anchor_bar(c) for c in sp["test"]] == [450, 500]
+
+    # Every later split starts a full look-back after the previous split ends,
+    # so a window that starts at the lower bound cannot touch earlier bars.
+    (_, hi_tr), (lo_va, hi_va), (lo_te, _) = sp["bounds"]["train"], sp["bounds"]["val"], sp["bounds"]["test"]
+    assert hi_tr == 301
+    assert lo_va == 301 + LOOKBACK
+    assert lo_te == hi_va + LOOKBACK
+    assert sp["embargo"] == LOOKBACK
+    assert lo_va - LOOKBACK >= hi_tr   # first val window's look-back is entirely after train

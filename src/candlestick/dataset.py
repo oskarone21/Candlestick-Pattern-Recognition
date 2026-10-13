@@ -231,6 +231,47 @@ def normalize_windows(X: np.ndarray) -> np.ndarray:
     stds = X.std(axis=1, keepdims=True) + 1e-8
     return (X - means) / stds
 
+def anchor_bar(c: PatternCandidate) -> int:
+    """Bar that ends a candidate's window: the breakout bar for confirmed
+    patterns, otherwise the last extremum (e.g. the right shoulder)."""
+    return c.breakout_bar if c.breakout_bar is not None else c.extrema_indices[-1]
+
+
+def chronological_split_with_embargo(
+    candidates: list[PatternCandidate],
+    cfg: dict,
+) -> dict:
+    """Time-ordered train/val/test split of candidates with an embargo.
+
+    Candidates are sorted by ``anchor_bar`` and cut by ``evaluation.train_ratio``
+    and ``evaluation.val_ratio``. Each later split starts one full look-back
+    (``windowing.lookback_bars``) after the previous split's last anchor, so no
+    validation/test window shares a bar with any training window. The bar
+    bounds are meant to be passed to :func:`build_windows` as ``bar_lo``/``bar_hi``.
+
+    Returns
+    -------
+    dict with keys ``train``, ``val``, ``test`` (candidate lists) and
+    ``bounds`` -> {"train": (0, b1), "val": (b1 + E, b2), "test": (b2 + E, None)}
+    where ``E`` is the embargo length in bars.
+    """
+    lookback = int(cfg["windowing"]["lookback_bars"])
+    ec = cfg["evaluation"]
+    cands_sorted = sorted(candidates, key=anchor_bar)
+    n = len(cands_sorted)
+    i_val = int(n * ec["train_ratio"])
+    i_test = int(n * (ec["train_ratio"] + ec["val_ratio"]))
+    tr, va, te = cands_sorted[:i_val], cands_sorted[i_val:i_test], cands_sorted[i_test:]
+
+    # Bar boundaries keep random negatives inside each split's time range.
+    b1 = max(anchor_bar(c) for c in tr) + 1 if tr else 0
+    b2 = max(anchor_bar(c) for c in va) + 1 if va else b1
+    embargo = lookback
+
+    return {
+        "train": tr, "val": va, "test": te, "embargo": embargo,
+        "bounds": {"train": (0, b1), "val": (b1 + embargo, b2), "test": (b2 + embargo, None)},
+    }
 
 class PatternDataset(Dataset):
     """PyTorch dataset wrapping OHLCV windows and binary labels."""

@@ -92,10 +92,12 @@ labeling:
     filter_nested: false
 
 model:
-  # 6 TCN blocks, kernel 3, dilations 1..32 -> receptive field 1 + 4*63 = 253 bars,
-  # which covers the longest window (160 bars). The previous default
-  # [64, 64, 128, 128] only reached 61 bars.
-  num_channels: [64, 64, 128, 128, 128, 128]
+  # Selected on validation over 3 seeds (see notebook section 4): 4 blocks,
+  # receptive field 1 + 4*15 = 61 bars. A 6-block variant [64,64,128,128,128,128]
+  # (receptive field 253, covering the full 160-bar window) was compared and did
+  # not help (validation F1 0.701 vs 0.707; test 0.586 vs 0.637), so the model
+  # is kept at 4 blocks and the notebook defines the 6-block arm explicitly.
+  num_channels: [64, 64, 128, 128]
   kernel_size: 3
 
 windowing:
@@ -127,7 +129,7 @@ evaluation:
 
 augmentation:
   enabled: true
-  # Each confirmed positive window produces 4 extra augmented copies.
+  # 2 extra augmented copies
   # 108 originals × 4 = 432 extra → ~540 positives in training set.
   positive_multiplier: 2
   techniques:
